@@ -1,0 +1,74 @@
+# Environment Variables for Perplexity Deep Search
+# Copy this file to .env and fill in your actual API keys
+
+# =============================================================================
+# LLM Provider API Keys
+# =============================================================================
+
+# Groq API Key (Required for backward compatibility)
+# Get from: https://console.groq.com/keys
+GROQ_API_KEY=your_groq_api_key_here
+
+# OpenAI API Key (Recommended for GPT models)
+# Get from: https://platform.openai.com/api-keys
+OPENAI_API_KEY=your_openai_api_key_here
+
+# DeepSeek API Key (Required for DeepSeek R1 reasoning model)
+# Get from: https://platform.deepseek.com/api_keys
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+
+# Anthropic API Key (Optional for Claude models)
+# Get from: https://console.anthropic.com/
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# =============================================================================
+# Model Configuration (Optional)
+# =============================================================================
+
+# Default models for each task type (optional, system uses defaults if not set)
+# SEARCH_QUERY_MODEL=gpt-4o-mini
+# THINKING_MODEL=deepseek-r1-distill-llama-70b
+# REPORT_MODEL=gpt-4o
+# CHAT_MODEL=gpt-4o
+
+# =============================================================================
+# Database Configuration (For Future Chat Memory Implementation)
+# =============================================================================
+
+# SQLite database path (default: ./data/conversations.db)
+# DATABASE_URL=sqlite:///./data/conversations.db
+
+# PostgreSQL database URL (for production)
+# DATABASE_URL=postgresql://username:password@localhost:5432/perplexity_deep_search
+
+# =============================================================================
+# Application Settings
+# =============================================================================
+
+# Environment (development, staging, production)
+ENVIRONMENT=development
+
+# Debug mode (true/false)
+DEBUG=true
+
+# Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+LOG_LEVEL=INFO
+
+# =============================================================================
+# Instructions for Setup
+# =============================================================================
+#
+# 1. Copy this file to .env: cp env_example.txt .env
+# 2. Fill in your actual API keys
+# 3. At minimum, you need GROQ_API_KEY for backward compatibility
+# 4. For full functionality, add OPENAI_API_KEY and DEEPSEEK_API_KEY
+# 5. ANTHROPIC_API_KEY is optional but recommended for model diversity
+# 6. Test your setup with: python test_config.py
+#
+# Priority for API Keys:
+# - HIGH: GROQ_API_KEY (required for existing functionality)
+# - HIGH: OPENAI_API_KEY (recommended for search query generation)
+# - MEDIUM: DEEPSEEK_API_KEY (for advanced reasoning capabilities)
+# - LOW: ANTHROPIC_API_KEY (additional model option)
+#
+# =============================================================================
