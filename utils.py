@@ -8,7 +8,7 @@ load_dotenv()
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 
-def call_llm(prompt, model="deepseek-r1-distill-llama-70b"):
+def call_llm(prompt, model="llama-3.3-70b-versatile"):
     response = client.chat.completions.create(
         model=model, messages=[{"role": "system", "content": prompt}]
     )
