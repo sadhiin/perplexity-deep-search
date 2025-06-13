@@ -11,7 +11,7 @@ import re
 load_dotenv()
 
 from utils import call_llm, get_search_results
-from prompts import (
+from prompt import (
     generate_search_queries_prompt,
     refine_search_queries_prompt,
     final_report_prompt,

@@ -1,6 +1,6 @@
 import streamlit as st
 
-from langgraph_workflow import build_graph
+from workflow import build_graph
 
 # Initialize session state
 if "final_report_generated" not in st.session_state:

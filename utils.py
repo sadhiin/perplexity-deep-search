@@ -1,12 +1,15 @@
-from openai import OpenAI
+import os
+from groq import Groq
 import bs4, requests
 from duckduckgo_search import DDGS
+from dotenv import load_dotenv
+load_dotenv()
 
-openai_client = OpenAI()
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 
-def call_llm(prompt, model="gpt-4o"):
-    response = openai_client.chat.completions.create(
+def call_llm(prompt, model="deepseek-r1-distill-llama-70b"):
+    response = client.chat.completions.create(
         model=model, messages=[{"role": "system", "content": prompt}]
     )
     response_text = response.choices[0].message.content
