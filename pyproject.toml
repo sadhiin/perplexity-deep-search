@@ -8,26 +8,27 @@ dependencies = [
     # Web scraping and search
     "bs4>=0.0.2",
     "duckduckgo-search>=8.0.4",
-
     # LLM Providers
     "groq>=0.28.0",
     "openai>=1.52.0",
     "anthropic>=0.40.0",
-
     # LangChain ecosystem
     "langchain>=0.3.25",
     "langchain-openai>=0.2.8",
     "langchain-anthropic>=0.3.0",
     "langgraph>=0.4.8",
-
     # Core utilities
     "python-dotenv>=1.1.0",
     "streamlit>=1.45.1",
     "pydantic>=2.10.0",
-
     # Optional database support for chat memory
     "sqlalchemy>=2.0.0",
     "alembic>=1.14.0",
+    "langchain-core>=0.3.65",
+    "langchain-groq>=0.3.2",
+    "langchain-google-genai>=2.0.10",
+    "google-generativeai>=0.8.5",
+    "pytest>=8.4.0",
 ]
 
 [project.optional-dependencies]
