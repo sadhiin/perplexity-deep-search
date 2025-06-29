@@ -10,7 +10,8 @@ import re
 # Load environment variables
 load_dotenv()
 
-from utils import call_llm, get_search_results
+from utils import call_llm, get_search_results, get_search_query_llm, call_thinking_llm
+from config import TaskType
 from prompt import (
     generate_search_queries_prompt,
     refine_search_queries_prompt,
@@ -34,23 +35,57 @@ class DeepResearchState(TypedDict):
 
 
 def query_planner(state: DeepResearchState):
+    """
+    Enhanced query planner using the specialized SearchQueryLLM.
+
+    This function now uses the dedicated search query generation model
+    optimized for creating effective search queries.
+    """
     user_query = state["user_query"]
     query_generation_count = state.get("query_generation_count", 0)
 
     current_date = datetime.today().strftime("%d %B %Y")
 
-    search_queries_response = call_llm(
-        generate_search_queries_prompt.format(
-            user_query=user_query,
-            current_date=current_date,
-            MAX_QUERY_GENERATIONS=MAX_QUERY_GENERATIONS,
-        )
-    )
+    # Use the specialized SearchQueryLLM for better query generation
+    search_query_llm = get_search_query_llm()
 
-    search_queries = [
-        q.strip().strip("'\"").strip("-").strip()
-        for q in search_queries_response.split("\n")
-    ]
+    try:
+        # Generate queries using the specialized model with context
+        context = f"Current date: {current_date}. Generate diverse queries to research this topic thoroughly."
+        search_queries = search_query_llm.generate_initial_queries(
+            user_query=user_query,
+            max_queries=MAX_QUERY_GENERATIONS,
+            context=context
+        )
+
+        # Validate and score each query
+        validated_queries = []
+        for query in search_queries:
+            validation = search_query_llm.validate_query(query)
+            if validation["is_valid"] and validation["score"] > 0.3:  # Minimum quality threshold
+                validated_queries.append(query)
+
+        # If validation filtered too many queries, use original ones
+        if len(validated_queries) < 2:
+            validated_queries = search_queries
+
+        search_queries = validated_queries[:MAX_QUERY_GENERATIONS]
+
+    except Exception as e:
+        # Fallback to original method if SearchQueryLLM fails
+        search_queries_response = call_llm(
+            generate_search_queries_prompt.format(
+                user_query=user_query,
+                current_date=current_date,
+                MAX_QUERY_GENERATIONS=MAX_QUERY_GENERATIONS,
+            ),
+            task_type=TaskType.SEARCH_QUERY_GENERATION
+        )
+
+        search_queries = [
+            q.strip().strip("'\"").strip("-").strip()
+            for q in search_queries_response.split("\n")
+        ]
 
     # Guard rails to force limit the number of queries in case llm decides to generate more
     search_queries = search_queries[:MAX_QUERY_GENERATIONS]
@@ -74,6 +109,12 @@ def query_planner(state: DeepResearchState):
 def should_refine_query(
     state: DeepResearchState,
 ) -> Command[Literal["should_refine_query", "final_report_generator"]]:
+    """
+    Enhanced query refinement using the specialized SearchQueryLLM.
+
+    This function now uses the dedicated search query model to generate
+    more intelligent refinements based on search results.
+    """
     user_query = state["user_query"]
     search_queries = state["search_queries"]
     search_results = state["search_results"]
@@ -84,29 +125,56 @@ def should_refine_query(
     if query_generation_count >= MAX_QUERY_REFINEMENTS:
         return Command(update={}, goto="final_report_generator")
 
-    search_results_str = "\n===========\n".join(
-        f"Title: {r['title']}\nContent: {r['text_content']}" for r in search_results
+    # Prepare search results summary for the SearchQueryLLM
+    search_results_summary = "\n===========\n".join(
+        f"Title: {r['title']}\nContent: {r['text_content'][:500]}..."  # Truncate for better processing
+        for r in search_results[:5]  # Use only top 5 results for refinement
     )
 
-    refined_search_queries_response = call_llm(
-        refine_search_queries_prompt.format(
-            user_query=user_query,
-            current_date=current_date,
-            search_queries="\n".join(search_queries),
-            search_results=search_results_str,
-            MAX_QUERY_GENERATIONS=MAX_QUERY_GENERATIONS,
+    search_query_llm = get_search_query_llm()
+
+    try:
+        # Use the specialized SearchQueryLLM for intelligent query refinement
+        refined_search_queries = search_query_llm.refine_queries(
+            original_query=user_query,
+            previous_queries=search_queries,
+            search_results_summary=search_results_summary,
+            max_queries=MAX_QUERY_GENERATIONS
         )
-    )
 
-    # Removed "None" instructions from prompt - can add it back if needed
-    # It can optionally return "None" if no refinements are needed
-    refined_search_queries = [
-        q.strip().strip("'\"").strip("-").strip()
-        for q in refined_search_queries_response.split("\n")
-        if q.lower() != "none"
-    ]
+        # Validate refined queries
+        validated_refined_queries = []
+        for query in refined_search_queries:
+            validation = search_query_llm.validate_query(query)
+            if validation["is_valid"] and validation["score"] > 0.4:  # Higher threshold for refinements
+                validated_refined_queries.append(query)
 
-    # Guard rails to force limit the number of queries in case llm decides to generate more
+        # If no good refined queries, skip refinement
+        if not validated_refined_queries:
+            return Command(update={}, goto="final_report_generator")
+
+        refined_search_queries = validated_refined_queries[:MAX_QUERY_GENERATIONS]
+
+    except Exception as e:
+        # Fallback to original method if SearchQueryLLM fails
+        refined_search_queries_response = call_llm(
+            refine_search_queries_prompt.format(
+                user_query=user_query,
+                current_date=current_date,
+                search_queries="\n".join(search_queries),
+                search_results=search_results_summary,
+                MAX_QUERY_GENERATIONS=MAX_QUERY_GENERATIONS,
+            ),
+            task_type=TaskType.SEARCH_QUERY_GENERATION
+        )
+
+        refined_search_queries = [
+            q.strip().strip("'\"").strip("-").strip()
+            for q in refined_search_queries_response.split("\n")
+            if q.lower() != "none"
+        ]
+
+    # Guard rails to force limit the number of queries
     refined_search_queries = refined_search_queries[:MAX_QUERY_GENERATIONS]
 
     consolidated_search_results = []
@@ -132,6 +200,12 @@ def should_refine_query(
 
 
 def final_report_generator(state: DeepResearchState):
+    """
+    Enhanced final report generator using the specialized ThinkingLLM.
+
+    This function now uses the dedicated thinking model for better
+    report generation and reasoning.
+    """
     user_query = state["user_query"]
     search_results = state["search_results"]
 
@@ -140,11 +214,23 @@ def final_report_generator(state: DeepResearchState):
         for r in search_results
     )
 
-    final_report_response = call_llm(
-        final_report_prompt.format(
-            user_query=user_query, search_results=search_results_str
+    try:
+        # Use the specialized ThinkingLLM for report generation
+        final_report_response = call_thinking_llm(
+            prompt=final_report_prompt.format(
+                user_query=user_query, search_results=search_results_str
+            ),
+            task="report",
+            context=f"User Query: {user_query}"
         )
-    )
+    except Exception as e:
+        # Fallback to original method if ThinkingLLM fails
+        final_report_response = call_llm(
+            final_report_prompt.format(
+                user_query=user_query, search_results=search_results_str
+            ),
+            task_type=TaskType.THINKING_REASONING
+        )
 
     # Extract summaries
     summaries = re.findall(
