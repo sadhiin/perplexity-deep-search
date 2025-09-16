@@ -1,0 +1,350 @@
+// DOM elements
+const messageForm = document.getElementById('message-form');
+const messageInput = document.getElementById('message-input');
+const sendBtn = document.getElementById('send-btn');
+const messagesContainer = document.getElementById('messages-container');
+const chatList = document.getElementById('chat-list');
+const newChatBtn = document.getElementById('new-chat-btn');
+const menuToggle = document.getElementById('menu-toggle');
+const sidebar = document.querySelector('.sidebar');
+const charCount = document.querySelector('.char-count');
+const themeToggle = document.getElementById('theme-toggle');
+
+// State management
+let currentChatId = null;
+let chats = JSON.parse(localStorage.getItem('chats')) || [];
+let isTyping = false;
+let currentTheme = localStorage.getItem('theme') || 'light';
+
+// Configuration
+const API_BASE_URL = 'http://localhost:8000'; // Adjust this to match your backend URL
+
+// Initialize the app
+function init() {
+    loadChats();
+    setupEventListeners();
+    createNewChat();
+    adjustTextareaHeight();
+    applyTheme();
+
+    console.log('AI Chat Assistant initialized');
+}
+
+// Event listeners
+function setupEventListeners() {
+    messageForm.addEventListener('submit', handleMessageSubmit);
+    messageInput.addEventListener('input', handleInputChange);
+    messageInput.addEventListener('keydown', handleKeyDown);
+    newChatBtn.addEventListener('click', createNewChat);
+    menuToggle.addEventListener('click', toggleSidebar);
+    themeToggle.addEventListener('click', toggleTheme);
+
+    // Close sidebar when clicking outside on mobile
+    document.addEventListener('click', (e) => {
+        if (window.innerWidth <= 768 && !sidebar.contains(e.target) && e.target !== menuToggle) {
+            sidebar.classList.remove('open');
+        }
+    });
+}
+
+// Handle message form submission
+async function handleMessageSubmit(e) {
+    e.preventDefault();
+    const message = messageInput.value.trim();
+
+    if (!message || isTyping) return;
+
+    // Add user message
+    addMessage(message, 'user');
+    messageInput.value = '';
+    updateCharCount();
+    adjustTextareaHeight();
+
+    // Show typing indicator
+    showTypingIndicator();
+
+    try {
+        // Simulate AI response (replace with actual API call)
+        const response = await getAIResponse(message);
+        hideTypingIndicator();
+        addMessage(response, 'bot');
+    } catch (error) {
+        hideTypingIndicator();
+        addMessage('Sorry, I encountered an error. Please try again.', 'bot');
+        console.error('Error getting AI response:', error);
+    }
+
+    // Update chat in history
+    updateCurrentChat(message);
+    saveChats();
+}
+
+// Handle input changes
+function handleInputChange() {
+    updateCharCount();
+    adjustTextareaHeight();
+    updateSendButtonState();
+}
+
+// Handle keyboard events
+function handleKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        messageForm.dispatchEvent(new Event('submit'));
+    }
+}
+
+// Update character count
+function updateCharCount() {
+    const count = messageInput.value.length;
+    charCount.textContent = `${count}/2000`;
+}
+
+// Adjust textarea height
+function adjustTextareaHeight() {
+    messageInput.style.height = 'auto';
+    messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
+}
+
+// Update send button state
+function updateSendButtonState() {
+    const hasText = messageInput.value.trim().length > 0;
+    sendBtn.disabled = !hasText || isTyping;
+}
+
+// Add message to chat
+function addMessage(content, type) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${type}`;
+
+    const messageContent = document.createElement('div');
+    messageContent.className = 'message-content';
+    messageContent.textContent = content;
+
+    const messageTime = document.createElement('div');
+    messageTime.className = 'message-time';
+    messageTime.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    messageDiv.appendChild(messageContent);
+    messageDiv.appendChild(messageTime);
+
+    messagesContainer.appendChild(messageDiv);
+    scrollToBottom();
+}
+
+// Show typing indicator
+function showTypingIndicator() {
+    isTyping = true;
+    updateSendButtonState();
+
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'typing-indicator';
+    typingDiv.id = 'typing-indicator';
+
+    typingDiv.innerHTML = `
+        <div class="typing-dots">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+        </div>
+        <span>AI is thinking...</span>
+    `;
+
+    messagesContainer.appendChild(typingDiv);
+    scrollToBottom();
+}
+
+// Hide typing indicator
+function hideTypingIndicator() {
+    isTyping = false;
+    updateSendButtonState();
+
+    const typingIndicator = document.getElementById('typing-indicator');
+    if (typingIndicator) {
+        typingIndicator.remove();
+    }
+}
+
+// Simulate AI response (replace with actual API call)
+async function getAIResponse(message) {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+
+    // Mock responses based on input
+    const responses = [
+        `I understand you're asking about "${message}". Let me help you with that. Based on my knowledge, here's what I can tell you...`,
+        `That's an interesting question about "${message}". From what I know, the key points are...`,
+        `Regarding "${message}", I'd be happy to provide some insights. Here's what you should know...`,
+        `Great question! When it comes to "${message}", there are several important aspects to consider...`
+    ];
+
+    return responses[Math.floor(Math.random() * responses.length)];
+}
+
+// Create new chat
+function createNewChat() {
+    const chatId = Date.now().toString();
+    const newChat = {
+        id: chatId,
+        title: 'New Chat',
+        messages: [],
+        createdAt: new Date().toISOString(),
+        lastMessageAt: new Date().toISOString()
+    };
+
+    chats.unshift(newChat);
+    currentChatId = chatId;
+
+    // Clear messages and show welcome message
+    messagesContainer.innerHTML = `
+        <div class="welcome-message">
+            <div class="welcome-content">
+                <h2>Welcome to AI Chat</h2>
+                <p>Ask me anything! I'm here to help you with information, analysis, and conversation.</p>
+            </div>
+        </div>
+    `;
+
+    updateChatList();
+    saveChats();
+}
+
+// Update current chat with new message
+function updateCurrentChat(message) {
+    const chat = chats.find(c => c.id === currentChatId);
+    if (chat) {
+        chat.messages.push({ content: message, type: 'user', timestamp: new Date().toISOString() });
+        chat.lastMessageAt = new Date().toISOString();
+
+        // Update title if it's still "New Chat"
+        if (chat.title === 'New Chat') {
+            chat.title = message.length > 30 ? message.substring(0, 30) + '...' : message;
+        }
+
+        updateChatList();
+    }
+}
+
+// Update chat list in sidebar
+function updateChatList() {
+    chatList.innerHTML = '';
+
+    chats.forEach(chat => {
+        const chatItem = document.createElement('div');
+        chatItem.className = `chat-item ${chat.id === currentChatId ? 'active' : ''}`;
+        chatItem.onclick = () => loadChat(chat.id);
+
+        chatItem.innerHTML = `
+            <div class="chat-item-title">${chat.title}</div>
+            <div class="chat-item-time">${formatTime(chat.lastMessageAt)}</div>
+        `;
+
+        chatList.appendChild(chatItem);
+    });
+}
+
+// Load a specific chat
+function loadChat(chatId) {
+    const chat = chats.find(c => c.id === chatId);
+    if (!chat) return;
+
+    currentChatId = chatId;
+
+    // Clear messages
+    messagesContainer.innerHTML = '';
+
+    // Load messages
+    if (chat.messages.length === 0) {
+        messagesContainer.innerHTML = `
+            <div class="welcome-message">
+                <div class="welcome-content">
+                    <h2>Welcome to AI Chat</h2>
+                    <p>Ask me anything! I'm here to help you with information, analysis, and conversation.</p>
+                </div>
+            </div>
+        `;
+    } else {
+        chat.messages.forEach(msg => {
+            addMessage(msg.content, msg.type);
+        });
+    }
+
+    updateChatList();
+}
+
+// Format time for chat list
+function formatTime(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now - date;
+
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
+
+    return date.toLocaleDateString();
+}
+
+// Toggle sidebar on mobile
+function toggleSidebar() {
+    sidebar.classList.toggle('open');
+}
+
+// Theme management functions
+function toggleTheme() {
+    currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+    applyTheme();
+    saveTheme();
+}
+
+function applyTheme() {
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    updateThemeIcon();
+}
+
+function updateThemeIcon() {
+    const icon = themeToggle.querySelector('svg path');
+    if (currentTheme === 'dark') {
+        // Sun icon for light mode
+        icon.setAttribute('d', 'M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z');
+    } else {
+        // Moon icon for dark mode
+        icon.setAttribute('d', 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z');
+    }
+}
+
+function saveTheme() {
+    localStorage.setItem('theme', currentTheme);
+}
+
+// Scroll to bottom of messages
+function scrollToBottom() {
+    setTimeout(() => {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }, 100);
+}
+
+// Load chats from localStorage
+function loadChats() {
+    chats = JSON.parse(localStorage.getItem('chats')) || [];
+    updateChatList();
+}
+
+// Save chats to localStorage
+function saveChats() {
+    localStorage.setItem('chats', JSON.stringify(chats));
+}
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', init);
+
+// Export functions for potential testing
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        addMessage,
+        getAIResponse,
+        createNewChat,
+        updateCurrentChat
+    };
+}
