@@ -110,7 +110,3 @@ npx http-server -p 8000
 
 # Then open http://localhost:8000/frontend/
 ```
-
-## License
-
-This frontend is part of the Perplexity Deep Search project.

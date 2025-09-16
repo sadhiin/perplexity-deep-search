@@ -17,7 +17,7 @@ let isTyping = false;
 let currentTheme = localStorage.getItem('theme') || 'light';
 
 // Configuration
-const API_BASE_URL = 'http://localhost:8000'; // Adjust this to match your backend URL
+const API_BASE_URL = window.API_BASE_URL || 'http://localhost:8000'; // Will be set by nginx or fallback to localhost
 
 // Initialize the app
 function init() {
