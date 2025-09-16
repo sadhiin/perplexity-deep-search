@@ -8,7 +8,7 @@ ENV API_BASE_URL=http://localhost:8000
 COPY ../frontend/ /usr/share/nginx/html/
 
 # Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+COPY docker/nginx.conf /etc/nginx/nginx.conf
 
 # Create directory for nginx pid file
 RUN mkdir -p /run/nginx
