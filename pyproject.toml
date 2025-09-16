@@ -24,6 +24,8 @@ dependencies = [
     "langchain-google-genai>=2.0.10",
     "google-generativeai>=0.8.5",
     "pytest>=8.4.0",
+    "fastapi>=0.116.1",
+    "uvicorn>=0.35.0",
 ]
 
 [project.optional-dependencies]
