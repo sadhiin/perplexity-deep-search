@@ -19,7 +19,6 @@ class LLMProvider(Enum):
     """Supported LLM providers."""
     OPENAI = "openai"
     GROQ = "groq"
-    DEEPSEEK = "deepseek"
     ANTHROPIC = "anthropic"
     GOOGLE = "google"
 
@@ -39,7 +38,7 @@ class ModelConfig:
     model_name: str
     temperature: float = 0.7
     max_tokens: Optional[int] = None
-    timeout: int = 30
+    timeout: int = 180  # in seconds
     max_retries: int = 3
     api_key_env: str = ""
     base_url: Optional[str] = None
@@ -84,18 +83,10 @@ class LLMConfiguration:
                     max_tokens=2000,
                     api_key_env="GROQ_API_KEY"
                 ),
-                "qwen-2.5-72b-instruct": ModelConfig(
-                    provider=LLMProvider.GROQ,
-                    model_name="qwen-2.5-72b-instruct",
-                    temperature=0.7,  # Higher for reasoning/thinking
-                    max_tokens=4000,
-                    api_key_env="GROQ_API_KEY"
-                ),
-
                 # Additional Groq models for variety
-                "llama-3.1-8b-instant": ModelConfig(
+                "gpt-oss-120b": ModelConfig(
                     provider=LLMProvider.GROQ,
-                    model_name="llama-3.1-8b-instant",
+                    model_name="openai/gpt-oss-120b",
                     temperature=0.3,
                     max_tokens=1000,
                     api_key_env="GROQ_API_KEY"
@@ -127,31 +118,30 @@ class LLMConfiguration:
                 ),
 
                 # Google models (for future expansion)
-                "gemini-1.5-pro": ModelConfig(
+                "gemini-2.5-pro": ModelConfig(
                     provider=LLMProvider.GOOGLE,
-                    model_name="gemini-1.5-pro",
+                    model_name="gemini-2.5-pro",
+                    temperature=0.3,
+                    max_tokens=4000,
+                    api_key_env="GOOGLE_API_KEY"
+                ),
+                "gemini-2.5-flash-lite": ModelConfig(
+                    provider=LLMProvider.GOOGLE,
+                    model_name="gemini-2.5-flash-lite",
                     temperature=0.7,
                     max_tokens=4000,
                     api_key_env="GOOGLE_API_KEY"
                 ),
 
-                # DeepSeek models (optional)
-                "deepseek-r1-distill-llama-70b": ModelConfig(
-                    provider=LLMProvider.DEEPSEEK,
-                    model_name="deepseek-r1-distill-llama-70b",
-                    temperature=0.7,
-                    max_tokens=4000,
-                    api_key_env="DEEPSEEK_API_KEY",
-                    base_url="https://api.deepseek.com"
-                )
+                # Additional models can be added here   
             }
 
     def _setup_default_task_assignments(self):
         """Setup default task to model assignments."""
         self.task_models = {
             TaskType.SEARCH_QUERY_GENERATION: "llama-3.3-70b-versatile",
-            TaskType.THINKING_REASONING: "qwen-2.5-72b-instruct",
-            TaskType.REPORT_GENERATION: "qwen-2.5-72b-instruct",
+            TaskType.THINKING_REASONING: "gemini-2.5-pro",
+            TaskType.REPORT_GENERATION: "gemini-2.5-flash-lite",
             TaskType.CHAT_RESPONSE: "llama-3.3-70b-versatile"
         }
 
@@ -159,28 +149,27 @@ class LLMConfiguration:
         """Setup default fallback chains."""
         self.fallback_chains = {
             TaskType.SEARCH_QUERY_GENERATION: [
+                'openai/gpt-oss-120b',
                 "llama-3.3-70b-versatile",
-                "llama-3.1-8b-instant",
                 "gpt-4o-mini",
-                "qwen-2.5-72b-instruct"
+                "gemini-2.5-flash-lite"
             ],
             TaskType.THINKING_REASONING: [
-                "qwen-2.5-72b-instruct",
+                "gemini-2.5-pro",
                 "llama-3.3-70b-versatile",
-                "deepseek-r1-distill-llama-70b",
                 "gpt-4o",
                 "claude-3-5-sonnet-20241022"
             ],
             TaskType.REPORT_GENERATION: [
-                "qwen-2.5-72b-instruct",
                 "llama-3.3-70b-versatile",
                 "gpt-4o",
+                "gemini-2.5-flash-lite",
                 "claude-3-5-sonnet-20241022"
             ],
             TaskType.CHAT_RESPONSE: [
                 "llama-3.3-70b-versatile",
-                "qwen-2.5-72b-instruct",
                 "gpt-4o",
+                "gemini-2.5-flash-lite",
                 "claude-3-5-sonnet-20241022"
             ]
         }
@@ -298,7 +287,7 @@ def check_required_env_vars() -> Dict[str, str]:
     required_vars = {
         "GROQ_API_KEY": "Required for Groq models (backward compatibility)",
         "OPENAI_API_KEY": "Required for OpenAI models (GPT-4, GPT-4o-mini)",
-        "DEEPSEEK_API_KEY": "Required for DeepSeek R1 reasoning models",
+        "GOOGLE_API_KEY": "Optional for Google Gemini models",
         "ANTHROPIC_API_KEY": "Optional for Claude models"
     }
 
@@ -342,5 +331,5 @@ def print_configuration_status():
         print(f"  {task_type.value}: {' → '.join(chain)}")
 
 
-if __name__ == "__main__":
-    print_configuration_status()
+# if __name__ == "__main__":
+#     print_configuration_status()
