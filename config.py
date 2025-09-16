@@ -75,76 +75,76 @@ class LLMConfiguration:
 
         def _setup_default_models(self):
         """Setup default model configurations."""
-        self.models = {
-            # Primary models from Groq (as requested)
-            "llama-3.3-70b-versatile": ModelConfig(
-                provider=LLMProvider.GROQ,
-                model_name="llama-3.3-70b-versatile",
-                temperature=0.3,  # Lower for search queries
-                max_tokens=2000,
-                api_key_env="GROQ_API_KEY"
-            ),
-            "qwen-2.5-72b-instruct": ModelConfig(
-                provider=LLMProvider.GROQ,
-                model_name="qwen-2.5-72b-instruct",
-                temperature=0.7,  # Higher for reasoning/thinking
-                max_tokens=4000,
-                api_key_env="GROQ_API_KEY"
-            ),
+            self.models = {
+                # Primary models from Groq (as requested)
+                "llama-3.3-70b-versatile": ModelConfig(
+                    provider=LLMProvider.GROQ,
+                    model_name="llama-3.3-70b-versatile",
+                    temperature=0.3,  # Lower for search queries
+                    max_tokens=2000,
+                    api_key_env="GROQ_API_KEY"
+                ),
+                "qwen-2.5-72b-instruct": ModelConfig(
+                    provider=LLMProvider.GROQ,
+                    model_name="qwen-2.5-72b-instruct",
+                    temperature=0.7,  # Higher for reasoning/thinking
+                    max_tokens=4000,
+                    api_key_env="GROQ_API_KEY"
+                ),
 
-            # Additional Groq models for variety
-            "llama-3.1-8b-instant": ModelConfig(
-                provider=LLMProvider.GROQ,
-                model_name="llama-3.1-8b-instant",
-                temperature=0.3,
-                max_tokens=1000,
-                api_key_env="GROQ_API_KEY"
-            ),
+                # Additional Groq models for variety
+                "llama-3.1-8b-instant": ModelConfig(
+                    provider=LLMProvider.GROQ,
+                    model_name="llama-3.1-8b-instant",
+                    temperature=0.3,
+                    max_tokens=1000,
+                    api_key_env="GROQ_API_KEY"
+                ),
 
-            # OpenAI models (optional fallbacks)
-            "gpt-4o-mini": ModelConfig(
-                provider=LLMProvider.OPENAI,
-                model_name="gpt-4o-mini",
-                temperature=0.3,
-                max_tokens=500,
-                api_key_env="OPENAI_API_KEY"
-            ),
-            "gpt-4o": ModelConfig(
-                provider=LLMProvider.OPENAI,
-                model_name="gpt-4o",
-                temperature=0.7,
-                max_tokens=4000,
-                api_key_env="OPENAI_API_KEY"
-            ),
+                # OpenAI models (optional fallbacks)
+                "gpt-4o-mini": ModelConfig(
+                    provider=LLMProvider.OPENAI,
+                    model_name="gpt-4o-mini",
+                    temperature=0.3,
+                    max_tokens=500,
+                    api_key_env="OPENAI_API_KEY"
+                ),
+                "gpt-4o": ModelConfig(
+                    provider=LLMProvider.OPENAI,
+                    model_name="gpt-4o",
+                    temperature=0.7,
+                    max_tokens=4000,
+                    api_key_env="OPENAI_API_KEY"
+                ),
 
-            # Anthropic models (optional)
-            "claude-3-5-sonnet-20241022": ModelConfig(
-                provider=LLMProvider.ANTHROPIC,
-                model_name="claude-3-5-sonnet-20241022",
-                temperature=0.7,
-                max_tokens=4000,
-                api_key_env="ANTHROPIC_API_KEY"
-            ),
+                # Anthropic models (optional)
+                "claude-3-5-sonnet-20241022": ModelConfig(
+                    provider=LLMProvider.ANTHROPIC,
+                    model_name="claude-3-5-sonnet-20241022",
+                    temperature=0.7,
+                    max_tokens=4000,
+                    api_key_env="ANTHROPIC_API_KEY"
+                ),
 
-            # Google models (for future expansion)
-            "gemini-1.5-pro": ModelConfig(
-                provider=LLMProvider.GOOGLE,
-                model_name="gemini-1.5-pro",
-                temperature=0.7,
-                max_tokens=4000,
-                api_key_env="GOOGLE_API_KEY"
-            ),
+                # Google models (for future expansion)
+                "gemini-1.5-pro": ModelConfig(
+                    provider=LLMProvider.GOOGLE,
+                    model_name="gemini-1.5-pro",
+                    temperature=0.7,
+                    max_tokens=4000,
+                    api_key_env="GOOGLE_API_KEY"
+                ),
 
-            # DeepSeek models (optional)
-            "deepseek-r1-distill-llama-70b": ModelConfig(
-                provider=LLMProvider.DEEPSEEK,
-                model_name="deepseek-r1-distill-llama-70b",
-                temperature=0.7,
-                max_tokens=4000,
-                api_key_env="DEEPSEEK_API_KEY",
-                base_url="https://api.deepseek.com"
-            )
-        }
+                # DeepSeek models (optional)
+                "deepseek-r1-distill-llama-70b": ModelConfig(
+                    provider=LLMProvider.DEEPSEEK,
+                    model_name="deepseek-r1-distill-llama-70b",
+                    temperature=0.7,
+                    max_tokens=4000,
+                    api_key_env="DEEPSEEK_API_KEY",
+                    base_url="https://api.deepseek.com"
+                )
+            }
 
     def _setup_default_task_assignments(self):
         """Setup default task to model assignments."""
