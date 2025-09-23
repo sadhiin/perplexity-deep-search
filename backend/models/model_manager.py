@@ -12,14 +12,14 @@ from typing import Dict, Any, Optional, List, Union
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
-from groq import Groq
-
-from config import (
+from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
+from backend.config import (
     ConfigurationManager,
     TaskType,
     LLMProvider,
     ModelConfig,
-    get_config
+    get_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 class ModelInstantiationError(Exception):
     """Exception raised when model instantiation fails."""
+
     pass
 
 
@@ -97,17 +98,17 @@ class ModelManager:
 
         return ChatAnthropic(**params)
 
-    def _create_groq_model(self, config: ModelConfig) -> 'GroqChatModel':
+    def _create_groq_model(self, config: ModelConfig) -> "ChatGroq":
         """Create a Groq model instance."""
         api_key = os.getenv(config.api_key_env)
         if not api_key:
             raise ModelInstantiationError(f"Missing API key: {config.api_key_env}")
 
         # Return a wrapper that implements the ChatModel interface
-        return GroqChatModel(config)
+        return ChatGroq(config)
 
-    def _create_deepseek_model(self, config: ModelConfig) -> ChatOpenAI:
-        """Create a DeepSeek model instance (uses OpenAI-compatible API)."""
+    def _create_gemini_model(self, config: ModelConfig) -> ChatGoogleGenerativeAI:
+        """Create a Gemini model instance (uses Google Generative AI API)."""
         api_key = os.getenv(config.api_key_env)
         if not api_key:
             raise ModelInstantiationError(f"Missing API key: {config.api_key_env}")
@@ -116,7 +117,6 @@ class ModelManager:
             "model": config.model_name,
             "temperature": config.temperature,
             "api_key": api_key,
-            "base_url": config.base_url or "https://api.deepseek.com",
             "timeout": config.timeout,
             "max_retries": config.max_retries,
         }
@@ -126,7 +126,7 @@ class ModelManager:
 
         params.update(config.custom_params)
 
-        return ChatOpenAI(**params)
+        return ChatGoogleGenerativeAI(**params)
 
     def _create_model_instance(self, model_name: str) -> BaseChatModel:
         """Create a model instance based on provider."""
@@ -139,10 +139,12 @@ class ModelManager:
                 return self._create_anthropic_model(config)
             elif config.provider == LLMProvider.GROQ:
                 return self._create_groq_model(config)
-            elif config.provider == LLMProvider.DEEPSEEK:
-                return self._create_deepseek_model(config)
+            elif config.provider == LLMProvider.GEMINI:
+                return self._create_gemini_model(config)
             else:
-                raise ModelInstantiationError(f"Unsupported provider: {config.provider}")
+                raise ModelInstantiationError(
+                    f"Unsupported provider: {config.provider}"
+                )
 
         except Exception as e:
             logger.error(f"Failed to create model {model_name}: {e}")
@@ -209,7 +211,9 @@ class ModelManager:
                 logger.info(f"Attempting fallback for {model_name}")
                 return self._try_fallback_models(model_name)
 
-            raise ModelInstantiationError(f"Model {model_name} unavailable and fallbacks disabled")
+            raise ModelInstantiationError(
+                f"Model {model_name} unavailable and fallbacks disabled"
+            )
 
     def _try_fallback_models(self, original_model: str) -> BaseChatModel:
         """Try fallback models based on task type."""
@@ -241,7 +245,9 @@ class ModelManager:
                 logger.warning(f"Fallback model {fallback_model} failed: {e}")
                 continue
 
-        raise ModelInstantiationError(f"All fallback models failed for {original_model}")
+        raise ModelInstantiationError(
+            f"All fallback models failed for {original_model}"
+        )
 
     def get_model_for_task(self, task_type: TaskType) -> BaseChatModel:
         """
@@ -286,68 +292,5 @@ class ModelManager:
             "max_tokens": config.max_tokens,
             "is_healthy": is_healthy,
             "is_cached": is_cached,
-            "api_key_configured": bool(os.getenv(config.api_key_env))
+            "api_key_configured": bool(os.getenv(config.api_key_env)),
         }
-
-
-class GroqChatModel(BaseChatModel):
-    """
-    Wrapper for Groq models to implement ChatModel interface.
-
-    This class wraps the Groq client to be compatible with LangChain's
-    BaseChatModel interface.
-    """
-
-    def __init__(self, config: ModelConfig):
-        """Initialize Groq chat model."""
-        super().__init__()
-        api_key = os.getenv(config.api_key_env)
-        if not api_key:
-            raise ModelInstantiationError(f"Missing API key: {config.api_key_env}")
-
-        self.client = Groq(api_key=api_key)
-        self.model_name = config.model_name
-        self.temperature = config.temperature
-        self.max_tokens = config.max_tokens
-        self.timeout = config.timeout
-        self.max_retries = config.max_retries
-
-    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
-        """Generate response using Groq API."""
-        # Convert LangChain messages to Groq format
-        groq_messages = []
-        for msg in messages:
-            if hasattr(msg, 'content'):
-                if msg.__class__.__name__ == 'HumanMessage':
-                    groq_messages.append({"role": "user", "content": msg.content})
-                elif msg.__class__.__name__ == 'AIMessage':
-                    groq_messages.append({"role": "assistant", "content": msg.content})
-                elif msg.__class__.__name__ == 'SystemMessage':
-                    groq_messages.append({"role": "system", "content": msg.content})
-
-        # Make API call to Groq
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=groq_messages,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                **kwargs
-            )
-
-            # Convert response to LangChain format
-            from langchain_core.messages import AIMessage
-            from langchain_core.outputs import ChatGeneration, ChatResult
-
-            ai_message = AIMessage(content=response.choices[0].message.content)
-            generation = ChatGeneration(message=ai_message)
-            return ChatResult(generations=[generation])
-
-        except Exception as e:
-            logger.error(f"Groq API call failed: {e}")
-            raise
-
-    @property
-    def _llm_type(self) -> str:
-        """Return identifier for this LLM type."""
-        return "groq_chat"

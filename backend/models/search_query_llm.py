@@ -58,9 +58,7 @@ Output format: Return each refined search query on a new line, no numbering or f
             model_manager: Optional model manager instance
         """
         self.model_manager = model_manager or ModelManager()
-        self.model: BaseChatModel = self.model_manager.get_model_for_task(
-            TaskType.SEARCH_QUERY_GENERATION
-        )
+        self.model: BaseChatModel = self.model_manager.get_model_for_task(TaskType.SEARCH_QUERY_GENERATION)
 
     def generate_initial_queries(
         self,
