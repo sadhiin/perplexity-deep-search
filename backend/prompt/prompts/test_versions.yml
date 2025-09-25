@@ -1,0 +1,42 @@
+# Test prompts with multiple versions
+search_query_generator:
+  v1.0:
+    template: |
+      Generate search queries for: {topic}
+      Focus on: {focus_area}
+      Provide {num_queries} queries.
+    description: "Basic search query generator"
+    input_variables: ["topic", "focus_area", "num_queries"]
+    version: "1.0"
+  v1.1:
+    template: |
+      Generate optimized search queries for: {topic}
+      Focus on: {focus_area}
+      Provide {num_queries} diverse queries.
+      Consider current date: {current_date}
+    description: "Enhanced search query generator with date awareness"
+    input_variables: ["topic", "focus_area", "num_queries", "current_date"]
+    version: "1.1"
+  v2.0:
+    template: |
+      Generate comprehensive search queries for research topic: {topic}
+
+      Requirements:
+      - Focus areas: {focus_area}
+      - Number of queries: {num_queries}
+      - Current date context: {current_date}
+      - Include diverse perspectives and sources
+
+      Output format: One query per line, numbered.
+    description: "Advanced search query generator with comprehensive requirements"
+    input_variables: ["topic", "focus_area", "num_queries", "current_date"]
+    version: "2.0"
+
+data_analysis:
+  template: |
+    Analyze the following data: {data}
+    Focus on: {focus_areas}
+    Provide insights in {output_format} format.
+  description: "Prompt for data analysis tasks"
+  input_variables: ["data", "focus_areas", "output_format"]
+  version: "1.2"
