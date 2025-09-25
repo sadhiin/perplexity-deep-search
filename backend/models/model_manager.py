@@ -19,7 +19,7 @@ from backend.config import (
     TaskType,
     LLMProvider,
     ModelConfig,
-    get_config,
+    get_config
 )
 
 logger = logging.getLogger(__name__)

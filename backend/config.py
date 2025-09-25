@@ -331,5 +331,3 @@ def print_configuration_status():
         print(f"  {task_type.value}: {' → '.join(chain)}")
 
 
-# if __name__ == "__main__":
-#     print_configuration_status()
