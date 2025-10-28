@@ -159,7 +159,7 @@ class PromptManager:
         self._loaded = False
         self.load_prompts()
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
     # from backend.prompt.prompt_manager import PromptManager
 
     # manager = PromptManager()
