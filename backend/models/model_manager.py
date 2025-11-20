@@ -98,16 +98,27 @@ class ModelManager:
 
         return ChatAnthropic(**params)
 
-    def _create_groq_model(self, config: ModelConfig) -> "ChatGroq":
+    def _create_groq_model(self, config: ModelConfig) -> ChatGroq:
         """Create a Groq model instance."""
         api_key = os.getenv(config.api_key_env)
         if not api_key:
             raise ModelInstantiationError(f"Missing API key: {config.api_key_env}")
 
-        # Return a wrapper that implements the ChatModel interface
-        return ChatGroq(config)
+        params = {
+            "model": config.model_name,
+            "temperature": config.temperature,
+            "groq_api_key": api_key,
+            "max_retries": config.max_retries,
+        }
 
-    def _create_gemini_model(self, config: ModelConfig) -> ChatGoogleGenerativeAI:
+        if config.max_tokens:
+            params["max_tokens"] = config.max_tokens
+
+        params.update(config.custom_params)
+
+        return ChatGroq(**params)
+
+    def _create_google_model(self, config: ModelConfig) -> ChatGoogleGenerativeAI:
         """Create a Gemini model instance (uses Google Generative AI API)."""
         api_key = os.getenv(config.api_key_env)
         if not api_key:
@@ -139,8 +150,8 @@ class ModelManager:
                 return self._create_anthropic_model(config)
             elif config.provider == LLMProvider.GROQ:
                 return self._create_groq_model(config)
-            elif config.provider == LLMProvider.GEMINI:
-                return self._create_gemini_model(config)
+            elif config.provider == LLMProvider.GOOGLE:
+                return self._create_google_model(config)
             else:
                 raise ModelInstantiationError(
                     f"Unsupported provider: {config.provider}"
