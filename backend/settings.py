@@ -1,5 +1,5 @@
-from pydantic_settings import BaseSettings
 from pydantic import SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class BackendSettings(BaseSettings):
@@ -21,9 +21,7 @@ class BackendSettings(BaseSettings):
     # redis information
     redis_url: SecretStr
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = SettingsConfigDict(env_file=".env", extra="forbid")
 
 
 settings = BackendSettings()
