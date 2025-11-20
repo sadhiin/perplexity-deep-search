@@ -17,6 +17,7 @@ load_dotenv()
 
 class LLMProvider(Enum):
     """Supported LLM providers."""
+
     OPENAI = "openai"
     GROQ = "groq"
     ANTHROPIC = "anthropic"
@@ -25,6 +26,7 @@ class LLMProvider(Enum):
 
 class TaskType(Enum):
     """Types of tasks that require different model configurations."""
+
     SEARCH_QUERY_GENERATION = "search_query_generation"
     THINKING_REASONING = "thinking_reasoning"
     REPORT_GENERATION = "report_generation"
@@ -34,6 +36,7 @@ class TaskType(Enum):
 @dataclass
 class ModelConfig:
     """Configuration for a specific model."""
+
     provider: LLMProvider
     model_name: str
     temperature: float = 0.7
@@ -50,6 +53,7 @@ class ModelConfig:
 @dataclass
 class RateLimitConfig:
     """Simple requests/token per minute rate limit configuration."""
+
     requests_per_minute: Optional[int] = None
     tokens_per_minute: Optional[int] = None
 
@@ -95,7 +99,7 @@ class LLMConfiguration:
                 max_tokens=2000,
                 api_key_env="GROQ_API_KEY",
                 cost_per_1k_input=0.9,
-                cost_per_1k_output=0.9
+                cost_per_1k_output=0.9,
             ),
             # Additional Groq models for variety
             "gpt-oss-120b": ModelConfig(
@@ -105,9 +109,8 @@ class LLMConfiguration:
                 max_tokens=1000,
                 api_key_env="GROQ_API_KEY",
                 cost_per_1k_input=1.0,
-                cost_per_1k_output=1.0
+                cost_per_1k_output=1.0,
             ),
-
             # OpenAI models (optional fallbacks)
             "gpt-4o-mini": ModelConfig(
                 provider=LLMProvider.OPENAI,
@@ -116,7 +119,7 @@ class LLMConfiguration:
                 max_tokens=500,
                 api_key_env="OPENAI_API_KEY",
                 cost_per_1k_input=0.15,
-                cost_per_1k_output=0.6
+                cost_per_1k_output=0.6,
             ),
             "gpt-4o": ModelConfig(
                 provider=LLMProvider.OPENAI,
@@ -125,9 +128,8 @@ class LLMConfiguration:
                 max_tokens=4000,
                 api_key_env="OPENAI_API_KEY",
                 cost_per_1k_input=5.0,
-                cost_per_1k_output=15.0
+                cost_per_1k_output=15.0,
             ),
-
             # Anthropic models (optional)
             "claude-3-5-sonnet-20241022": ModelConfig(
                 provider=LLMProvider.ANTHROPIC,
@@ -136,9 +138,8 @@ class LLMConfiguration:
                 max_tokens=4000,
                 api_key_env="ANTHROPIC_API_KEY",
                 cost_per_1k_input=3.0,
-                cost_per_1k_output=15.0
+                cost_per_1k_output=15.0,
             ),
-
             # Google models (for future expansion)
             "gemini-2.5-pro": ModelConfig(
                 provider=LLMProvider.GOOGLE,
@@ -147,7 +148,7 @@ class LLMConfiguration:
                 max_tokens=4000,
                 api_key_env="GOOGLE_API_KEY",
                 cost_per_1k_input=3.5,
-                cost_per_1k_output=10.5
+                cost_per_1k_output=10.5,
             ),
             "gemini-2.5-flash-lite": ModelConfig(
                 provider=LLMProvider.GOOGLE,
@@ -156,10 +157,9 @@ class LLMConfiguration:
                 max_tokens=4000,
                 api_key_env="GOOGLE_API_KEY",
                 cost_per_1k_input=0.35,
-                cost_per_1k_output=1.05
+                cost_per_1k_output=1.05,
             ),
-
-            # Additional models can be added here   
+            # Additional models can be added here
         }
 
     def _setup_default_task_assignments(self):
@@ -168,7 +168,7 @@ class LLMConfiguration:
             TaskType.SEARCH_QUERY_GENERATION: "llama-3.3-70b-versatile",
             TaskType.THINKING_REASONING: "gemini-2.5-pro",
             TaskType.REPORT_GENERATION: "gemini-2.5-flash-lite",
-            TaskType.CHAT_RESPONSE: "llama-3.3-70b-versatile"
+            TaskType.CHAT_RESPONSE: "llama-3.3-70b-versatile",
         }
 
     def _setup_default_fallbacks(self):
@@ -178,26 +178,26 @@ class LLMConfiguration:
                 "gpt-oss-120b",
                 "llama-3.3-70b-versatile",
                 "gpt-4o-mini",
-                "gemini-2.5-flash-lite"
+                "gemini-2.5-flash-lite",
             ],
             TaskType.THINKING_REASONING: [
                 "gemini-2.5-pro",
                 "llama-3.3-70b-versatile",
                 "gpt-4o",
-                "claude-3-5-sonnet-20241022"
+                "claude-3-5-sonnet-20241022",
             ],
             TaskType.REPORT_GENERATION: [
                 "llama-3.3-70b-versatile",
                 "gpt-4o",
                 "gemini-2.5-flash-lite",
-                "claude-3-5-sonnet-20241022"
+                "claude-3-5-sonnet-20241022",
             ],
             TaskType.CHAT_RESPONSE: [
                 "llama-3.3-70b-versatile",
                 "gpt-4o",
                 "gemini-2.5-flash-lite",
-                "claude-3-5-sonnet-20241022"
-            ]
+                "claude-3-5-sonnet-20241022",
+            ],
         }
 
     def _setup_default_rate_limits(self):
@@ -206,7 +206,7 @@ class LLMConfiguration:
             LLMProvider.GROQ: RateLimitConfig(requests_per_minute=60),
             LLMProvider.OPENAI: RateLimitConfig(requests_per_minute=80),
             LLMProvider.ANTHROPIC: RateLimitConfig(requests_per_minute=50),
-            LLMProvider.GOOGLE: RateLimitConfig(requests_per_minute=60)
+            LLMProvider.GOOGLE: RateLimitConfig(requests_per_minute=60),
         }
 
     def get_model_for_task(self, task_type: TaskType) -> str:
@@ -233,7 +233,9 @@ class LLMConfiguration:
 
         for model_name, config in self.models.items():
             api_key = os.getenv(config.api_key_env)
-            validation_results[model_name] = api_key is not None and api_key.strip() != ""
+            validation_results[model_name] = (
+                api_key is not None and api_key.strip() != ""
+            )
 
         return validation_results
 
@@ -255,8 +257,7 @@ class ConfigurationManager:
         """Validate environment variables and warn about missing keys."""
         validation_results = self.config.validate_api_keys()
         missing_keys = [
-            model for model, is_valid in validation_results.items()
-            if not is_valid
+            model for model, is_valid in validation_results.items() if not is_valid
         ]
 
         if missing_keys:
@@ -327,7 +328,7 @@ def check_required_env_vars() -> Dict[str, str]:
         "GROQ_API_KEY": "Required for Groq models (backward compatibility)",
         "OPENAI_API_KEY": "Required for OpenAI models (GPT-4, GPT-4o-mini)",
         "GOOGLE_API_KEY": "Optional for Google Gemini models",
-        "ANTHROPIC_API_KEY": "Optional for Claude models"
+        "ANTHROPIC_API_KEY": "Optional for Claude models",
     }
 
     status = {}
@@ -368,5 +369,3 @@ def print_configuration_status():
     for task_type in TaskType:
         chain = config_manager.config.get_fallback_chain(task_type)
         print(f"  {task_type.value}: {' → '.join(chain)}")
-
-

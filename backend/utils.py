@@ -48,7 +48,11 @@ def get_thinking_llm() -> ThinkingLLM:
     return _thinking_llm
 
 
-def call_llm(prompt: str, model: str = "llama-3.3-70b-versatile", task_type: Optional[TaskType] = None) -> str:
+def call_llm(
+    prompt: str,
+    model: str = "llama-3.3-70b-versatile",
+    task_type: Optional[TaskType] = None,
+) -> str:
     """
     Call an LLM with the given prompt.
 
@@ -69,6 +73,7 @@ def call_llm(prompt: str, model: str = "llama-3.3-70b-versatile", task_type: Opt
             llm_model = model_manager.get_model_for_task(task_type)
 
             from langchain_core.messages import SystemMessage
+
             messages = [SystemMessage(content=prompt)]
             response = llm_model.invoke(messages)
             return response.content
@@ -82,6 +87,7 @@ def call_llm(prompt: str, model: str = "llama-3.3-70b-versatile", task_type: Opt
             if available_models:
                 llm_model = model_manager.get_model(available_models[0])
                 from langchain_core.messages import SystemMessage
+
                 messages = [SystemMessage(content=prompt)]
                 response = llm_model.invoke(messages)
                 return response.content
@@ -102,15 +108,20 @@ def call_llm(prompt: str, model: str = "llama-3.3-70b-versatile", task_type: Opt
             if available_models:
                 fallback_model = model_manager.get_model(available_models[0])
                 from langchain_core.messages import SystemMessage
+
                 messages = [SystemMessage(content=prompt)]
                 response = fallback_model.invoke(messages)
                 return response.content
         except Exception as fallback_error:
             logger.error(f"Fallback also failed: {fallback_error}")
-            raise Exception(f"All LLM calls failed. Original error: {e}, Fallback error: {fallback_error}")
+            raise Exception(
+                f"All LLM calls failed. Original error: {e}, Fallback error: {fallback_error}"
+            )
 
 
-def call_search_query_llm(user_query: str, max_queries: int = 3, context: Optional[str] = None) -> List[str]:
+def call_search_query_llm(
+    user_query: str, max_queries: int = 3, context: Optional[str] = None
+) -> List[str]:
     """
     Generate search queries using the specialized search query LLM.
 
@@ -132,9 +143,7 @@ def call_search_query_llm(user_query: str, max_queries: int = 3, context: Option
 
 
 def call_thinking_llm(
-    prompt: str,
-    task: str = "analysis",
-    context: Optional[str] = None
+    prompt: str, task: str = "analysis", context: Optional[str] = None
 ) -> str:
     """
     Call the thinking LLM for complex reasoning tasks.
@@ -157,6 +166,7 @@ def call_thinking_llm(
             return thinking_llm.generate_comprehensive_report(prompt, prompt)
         elif task == "chat":
             from langchain_core.messages import HumanMessage
+
             messages = [HumanMessage(content=prompt)]
             return thinking_llm.generate_chat_response(messages, context)
         else:
