@@ -15,7 +15,6 @@ dependencies = [
     "langchain-anthropic>=0.3.0",
     "langgraph>=0.4.8",
     "python-dotenv>=1.1.0",
-    "streamlit>=1.45.1",
     "pydantic>=2.10.0",
     "sqlalchemy>=2.0.0",
     "alembic>=1.14.0",
