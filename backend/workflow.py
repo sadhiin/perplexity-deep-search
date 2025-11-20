@@ -1,4 +1,5 @@
 import operator
+import logging
 from typing import Annotated
 from typing_extensions import TypedDict, Literal
 from langgraph.graph import START, END, StateGraph
@@ -10,7 +11,13 @@ import re
 # Load environment variables
 load_dotenv()
 
-from utils import call_llm, get_search_results, get_search_query_llm, call_thinking_llm
+from utils import (
+    call_llm,
+    get_search_results,
+    get_search_query_llm,
+    call_thinking_llm,
+    get_thinking_llm,
+)
 from config import TaskType
 from prompt import (
     generate_search_queries_prompt,
@@ -32,6 +39,10 @@ class DeepResearchState(TypedDict):
     individual_page_summaries: Annotated[list, operator.add]
     report_markdown: str
     query_generation_count: int
+    claim_confidences: list
+
+
+logger = logging.getLogger(__name__)
 
 
 def query_planner(state: DeepResearchState):
@@ -53,16 +64,16 @@ def query_planner(state: DeepResearchState):
         # Generate queries using the specialized model with context
         context = f"Current date: {current_date}. Generate diverse queries to research this topic thoroughly."
         search_queries = search_query_llm.generate_initial_queries(
-            user_query=user_query,
-            max_queries=MAX_QUERY_GENERATIONS,
-            context=context
+            user_query=user_query, max_queries=MAX_QUERY_GENERATIONS, context=context
         )
 
         # Validate and score each query
         validated_queries = []
         for query in search_queries:
             validation = search_query_llm.validate_query(query)
-            if validation["is_valid"] and validation["score"] > 0.3:  # Minimum quality threshold
+            if (
+                validation["is_valid"] and validation["score"] > 0.3
+            ):  # Minimum quality threshold
                 validated_queries.append(query)
 
         # If validation filtered too many queries, use original ones
@@ -79,7 +90,7 @@ def query_planner(state: DeepResearchState):
                 current_date=current_date,
                 MAX_QUERY_GENERATIONS=MAX_QUERY_GENERATIONS,
             ),
-            task_type=TaskType.SEARCH_QUERY_GENERATION
+            task_type=TaskType.SEARCH_QUERY_GENERATION,
         )
 
         search_queries = [
@@ -139,14 +150,16 @@ def should_refine_query(
             original_query=user_query,
             previous_queries=search_queries,
             search_results_summary=search_results_summary,
-            max_queries=MAX_QUERY_GENERATIONS
+            max_queries=MAX_QUERY_GENERATIONS,
         )
 
         # Validate refined queries
         validated_refined_queries = []
         for query in refined_search_queries:
             validation = search_query_llm.validate_query(query)
-            if validation["is_valid"] and validation["score"] > 0.4:  # Higher threshold for refinements
+            if (
+                validation["is_valid"] and validation["score"] > 0.4
+            ):  # Higher threshold for refinements
                 validated_refined_queries.append(query)
 
         # If no good refined queries, skip refinement
@@ -165,7 +178,7 @@ def should_refine_query(
                 search_results=search_results_summary,
                 MAX_QUERY_GENERATIONS=MAX_QUERY_GENERATIONS,
             ),
-            task_type=TaskType.SEARCH_QUERY_GENERATION
+            task_type=TaskType.SEARCH_QUERY_GENERATION,
         )
 
         refined_search_queries = [
@@ -221,15 +234,18 @@ def final_report_generator(state: DeepResearchState):
                 user_query=user_query, search_results=search_results_str
             ),
             task="report",
-            context=f"User Query: {user_query}"
+            context=f"User Query: {user_query}",
         )
     except Exception as e:
         # Fallback to original method if ThinkingLLM fails
+        logger.warning(
+            "Falling back to generic LLM for report generation due to error: %s", e
+        )
         final_report_response = call_llm(
             final_report_prompt.format(
                 user_query=user_query, search_results=search_results_str
             ),
-            task_type=TaskType.THINKING_REASONING
+            task_type=TaskType.THINKING_REASONING,
         )
 
     # Extract summaries
@@ -245,9 +261,21 @@ def final_report_generator(state: DeepResearchState):
     )
     final_report = final_report_match.group(1) if final_report_match else ""
 
+    confidence_scores = []
+    try:
+        thinking_llm = get_thinking_llm()
+        confidence_scores = thinking_llm.assess_claim_confidence(
+            report_markdown=final_report,
+            search_results=search_results,
+            user_query=user_query,
+        )
+    except Exception as e:
+        logger.error("Failed to generate confidence scores: %s", e)
+
     return {
         "individual_page_summaries": summaries,
         "report_markdown": final_report,
+        "claim_confidences": confidence_scores,
     }
 
 
