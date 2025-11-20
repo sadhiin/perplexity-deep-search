@@ -7,6 +7,7 @@ structured thinking processes.
 """
 
 import logging
+import json
 from typing import List, Optional, Dict, Any, Union
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.language_models import BaseChatModel
@@ -376,6 +377,68 @@ Show your thinking process clearly at each step."""
                 "limitations": ["Reasoning process failed"]
             }
 
+    def assess_claim_confidence(
+        self,
+        report_markdown: str,
+        search_results: List[Dict[str, Any]],
+        user_query: Optional[str] = None,
+        max_claims: int = 6,
+    ) -> List[Dict[str, Any]]:
+        """Score confidence for major claims in a report."""
+        try:
+            if not report_markdown.strip():
+                return []
+
+            evidence_chunks = []
+            for result in search_results:
+                title = result.get("title", "Unknown Source")
+                link = result.get("href", "")
+                snippet = (result.get("text_content") or "")[:400]
+                evidence_chunks.append(f"{title} ({link})\n{snippet}")
+
+            evidence_summary = "\n\n".join(evidence_chunks[:8])
+
+            prompt = f"""You are verifying the reliability of a research report.
+
+Original Query: {user_query or 'Unknown'}
+
+Research Report:
+{report_markdown}
+
+Supporting Evidence:
+{evidence_summary}
+
+Task: Extract up to {max_claims} of the most important claims or findings from the report and rate confidence that each claim is fully supported by the evidence. Only use the provided evidence and report content.
+
+Return your analysis strictly as valid JSON formatted as:
+[
+  {{
+    "claim": "short statement",
+    "confidence_score": 0.0-1.0,
+    "evidence": ["cite key supporting facts"],
+    "rationale": "why this score"
+  }}
+]
+
+- Use decimal confidence scores between 0 and 1.
+- Include at least one piece of supporting evidence per claim when possible.
+- Focus on the most decision-relevant claims.
+"""
+
+            messages = [
+                SystemMessage(content=self.THINKING_SYSTEM_PROMPT),
+                HumanMessage(content=prompt)
+            ]
+
+            model = self._get_model(TaskType.THINKING_REASONING)
+            response = model.invoke(messages)
+
+            return self._parse_confidence_scores(response.content)
+
+        except Exception as e:
+            logger.error(f"Error assessing claim confidence: {e}")
+            return []
+
     def _parse_analysis_response(self, response: str) -> Dict[str, Any]:
         """Parse structured analysis response."""
         # Simple parsing - in production, could use more sophisticated NLP
@@ -417,6 +480,43 @@ Show your thinking process clearly at each step."""
             "limitations": self._extract_bullet_points(response, "limitations")
         }
 
+    def _parse_confidence_scores(self, response: str) -> List[Dict[str, Any]]:
+        """Parse JSON confidence scores from the model response."""
+        try:
+            json_text = self._extract_json_block(response)
+            data = json.loads(json_text)
+        except Exception as e:
+            logger.error(f"Failed to parse confidence scores: {e}")
+            return []
+
+        if isinstance(data, dict):
+            data = data.get("claims") or data.get("items") or [data]
+
+        normalized_scores = []
+        for entry in data or []:
+            if not isinstance(entry, dict):
+                continue
+            claim = entry.get("claim") or entry.get("statement") or ""
+            if not claim:
+                continue
+            score = entry.get("confidence_score", entry.get("confidence"))
+            score = self._normalize_confidence_score(score)
+            level = entry.get("confidence_level") or self._score_to_level(score)
+            evidence = entry.get("evidence") or []
+            if isinstance(evidence, str):
+                evidence = [evidence]
+            rationale = entry.get("rationale") or entry.get("justification") or ""
+
+            normalized_scores.append({
+                "claim": claim.strip(),
+                "confidence_score": score,
+                "confidence_level": level,
+                "evidence": [e.strip() for e in evidence if e],
+                "rationale": rationale.strip(),
+            })
+
+        return normalized_scores
+
     def _extract_bullet_points(self, text: str, section: str) -> List[str]:
         """Extract bullet points from a specific section."""
         import re
@@ -432,6 +532,49 @@ Show your thinking process clearly at each step."""
         bullets = re.findall(r'[-•*]\s*([^\n]+)', section_text)
 
         return [bullet.strip() for bullet in bullets]
+
+    def _extract_json_block(self, text: str) -> str:
+        """Extract the first JSON array/object from text."""
+        import re
+
+        code_block = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
+        if code_block:
+            return code_block.group(1).strip()
+
+        start = text.find("[")
+        if start != -1:
+            end = text.rfind("]")
+            if end != -1 and end > start:
+                return text[start:end + 1]
+
+        start = text.find("{")
+        if start != -1:
+            end = text.rfind("}")
+            if end != -1 and end > start:
+                return text[start:end + 1]
+
+        raise ValueError("No JSON content found in response")
+
+    def _normalize_confidence_score(self, value: Any) -> float:
+        """Normalize arbitrary input into 0-1 range."""
+        try:
+            score = float(value)
+        except Exception:
+            return 0.5
+
+        if score > 1:
+            score = score / 100 if score <= 100 else 1.0
+        if score < 0:
+            score = 0.0
+        return min(score, 1.0)
+
+    def _score_to_level(self, score: float) -> str:
+        """Convert numeric score to descriptive label."""
+        if score >= 0.75:
+            return "high"
+        if score >= 0.5:
+            return "medium"
+        return "low"
 
     def get_model_info(self) -> Dict[str, Any]:
         """Get information about the current thinking model."""
