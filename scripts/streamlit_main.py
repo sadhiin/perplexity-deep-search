@@ -8,6 +8,10 @@ if "final_report_generated" not in st.session_state:
     st.session_state["stream_data"] = []
     st.session_state["final_markdown_report"] = ""
     st.session_state["search_results"] = []
+    st.session_state["claim_confidences"] = []
+
+if "claim_confidences" not in st.session_state:
+    st.session_state["claim_confidences"] = []
 
 
 # Function to simulate streaming of data
@@ -38,6 +42,9 @@ def fetch_results_streaming(query):
             st.session_state["final_markdown_report"] = chunk["final_report_generator"][
                 "report_markdown"
             ]
+            st.session_state["claim_confidences"] = chunk["final_report_generator"].get(
+                "claim_confidences", []
+            )
         yield
 
 
@@ -115,6 +122,22 @@ if query:
 
     with tab2:
         if st.session_state["final_report_generated"]:
+            claim_confidences = st.session_state.get("claim_confidences", [])
+            if claim_confidences:
+                st.subheader("Claim Confidence")
+                for entry in claim_confidences:
+                    score_pct = int(round(entry.get("confidence_score", 0) * 100))
+                    level = entry.get("confidence_level", "unknown").title()
+                    st.markdown(
+                        f"**{level} confidence ({score_pct}%):** {entry.get('claim', '')}"
+                    )
+                    evidence = entry.get("evidence") or []
+                    if evidence:
+                        st.caption("Evidence: " + "; ".join(evidence))
+                    rationale = entry.get("rationale")
+                    if rationale:
+                        st.caption(f"Why: {rationale}")
+                st.divider()
             st.markdown(st.session_state["final_markdown_report"])
 
     with tab3:
