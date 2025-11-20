@@ -43,6 +43,15 @@ class ModelConfig:
     api_key_env: str = ""
     base_url: Optional[str] = None
     custom_params: Dict[str, Any] = field(default_factory=dict)
+    cost_per_1k_input: Optional[float] = None
+    cost_per_1k_output: Optional[float] = None
+
+
+@dataclass
+class RateLimitConfig:
+    """Simple requests/token per minute rate limit configuration."""
+    requests_per_minute: Optional[int] = None
+    tokens_per_minute: Optional[int] = None
 
 
 @dataclass
@@ -62,6 +71,7 @@ class LLMConfiguration:
     enable_fallbacks: bool = True
     enable_load_balancing: bool = False
     cost_optimization: bool = True
+    rate_limits: Dict[LLMProvider, RateLimitConfig] = field(default_factory=dict)
 
     def __post_init__(self):
         """Initialize default configurations."""
@@ -71,6 +81,8 @@ class LLMConfiguration:
             self._setup_default_task_assignments()
         if not self.fallback_chains:
             self._setup_default_fallbacks()
+        if not self.rate_limits:
+            self._setup_default_rate_limits()
 
     def _setup_default_models(self):
         """Setup default model configurations."""
@@ -81,7 +93,9 @@ class LLMConfiguration:
                 model_name="llama-3.3-70b-versatile",
                 temperature=0.3,  # Lower for search queries
                 max_tokens=2000,
-                api_key_env="GROQ_API_KEY"
+                api_key_env="GROQ_API_KEY",
+                cost_per_1k_input=0.9,
+                cost_per_1k_output=0.9
             ),
             # Additional Groq models for variety
             "gpt-oss-120b": ModelConfig(
@@ -89,7 +103,9 @@ class LLMConfiguration:
                 model_name="openai/gpt-oss-120b",
                 temperature=0.3,
                 max_tokens=1000,
-                api_key_env="GROQ_API_KEY"
+                api_key_env="GROQ_API_KEY",
+                cost_per_1k_input=1.0,
+                cost_per_1k_output=1.0
             ),
 
             # OpenAI models (optional fallbacks)
@@ -98,14 +114,18 @@ class LLMConfiguration:
                 model_name="gpt-4o-mini",
                 temperature=0.3,
                 max_tokens=500,
-                api_key_env="OPENAI_API_KEY"
+                api_key_env="OPENAI_API_KEY",
+                cost_per_1k_input=0.15,
+                cost_per_1k_output=0.6
             ),
             "gpt-4o": ModelConfig(
                 provider=LLMProvider.OPENAI,
                 model_name="gpt-4o",
                 temperature=0.7,
                 max_tokens=4000,
-                api_key_env="OPENAI_API_KEY"
+                api_key_env="OPENAI_API_KEY",
+                cost_per_1k_input=5.0,
+                cost_per_1k_output=15.0
             ),
 
             # Anthropic models (optional)
@@ -114,7 +134,9 @@ class LLMConfiguration:
                 model_name="claude-3-5-sonnet-20241022",
                 temperature=0.7,
                 max_tokens=4000,
-                api_key_env="ANTHROPIC_API_KEY"
+                api_key_env="ANTHROPIC_API_KEY",
+                cost_per_1k_input=3.0,
+                cost_per_1k_output=15.0
             ),
 
             # Google models (for future expansion)
@@ -123,14 +145,18 @@ class LLMConfiguration:
                 model_name="gemini-2.5-pro",
                 temperature=0.3,
                 max_tokens=4000,
-                api_key_env="GOOGLE_API_KEY"
+                api_key_env="GOOGLE_API_KEY",
+                cost_per_1k_input=3.5,
+                cost_per_1k_output=10.5
             ),
             "gemini-2.5-flash-lite": ModelConfig(
                 provider=LLMProvider.GOOGLE,
                 model_name="gemini-2.5-flash-lite",
                 temperature=0.7,
                 max_tokens=4000,
-                api_key_env="GOOGLE_API_KEY"
+                api_key_env="GOOGLE_API_KEY",
+                cost_per_1k_input=0.35,
+                cost_per_1k_output=1.05
             ),
 
             # Additional models can be added here   
@@ -174,6 +200,15 @@ class LLMConfiguration:
             ]
         }
 
+    def _setup_default_rate_limits(self):
+        """Setup default provider rate limits based on public quotas."""
+        self.rate_limits = {
+            LLMProvider.GROQ: RateLimitConfig(requests_per_minute=60),
+            LLMProvider.OPENAI: RateLimitConfig(requests_per_minute=80),
+            LLMProvider.ANTHROPIC: RateLimitConfig(requests_per_minute=50),
+            LLMProvider.GOOGLE: RateLimitConfig(requests_per_minute=60)
+        }
+
     def get_model_for_task(self, task_type: TaskType) -> str:
         """Get the primary model for a given task type."""
         return self.task_models.get(task_type, "llama-3.3-70b-versatile")
@@ -183,6 +218,10 @@ class LLMConfiguration:
         if model_name not in self.models:
             raise ValueError(f"Model '{model_name}' not found in configuration")
         return self.models[model_name]
+
+    def get_rate_limit(self, provider: LLMProvider) -> Optional[RateLimitConfig]:
+        """Return the configured rate limit for a provider."""
+        return self.rate_limits.get(provider)
 
     def get_fallback_chain(self, task_type: TaskType) -> List[str]:
         """Get fallback chain for a task type."""

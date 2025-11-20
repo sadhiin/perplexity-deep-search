@@ -58,7 +58,10 @@ Output format: Return each refined search query on a new line, no numbering or f
             model_manager: Optional model manager instance
         """
         self.model_manager = model_manager or ModelManager()
-        self.model: BaseChatModel = self.model_manager.get_model_for_task(TaskType.SEARCH_QUERY_GENERATION)
+
+    def _get_model(self) -> BaseChatModel:
+        """Fetch a fresh model reference (handles cost-based switching)."""
+        return self.model_manager.get_model_for_task(TaskType.SEARCH_QUERY_GENERATION)
 
     def generate_initial_queries(
         self,
@@ -90,7 +93,8 @@ Generate {max_queries} diverse and effective search queries to research this top
                 HumanMessage(content=prompt)
             ]
 
-            response = self.model.invoke(messages)
+            model = self._get_model()
+            response = model.invoke(messages)
             queries = self._parse_query_response(response.content, max_queries)
 
             logger.info(f"Generated {len(queries)} initial search queries")
@@ -136,7 +140,8 @@ Based on the results so far, generate {max_queries} refined search queries to fi
                 HumanMessage(content=prompt)
             ]
 
-            response = self.model.invoke(messages)
+            model = self._get_model()
+            response = model.invoke(messages)
             refined_queries = self._parse_query_response(response.content, max_queries)
 
             logger.info(f"Generated {len(refined_queries)} refined search queries")
@@ -268,7 +273,8 @@ Generate {max_queries} targeted follow-up search queries to explore these subtop
                 HumanMessage(content=prompt)
             ]
 
-            response = self.model.invoke(messages)
+            model = self._get_model()
+            response = model.invoke(messages)
             follow_up_queries = self._parse_query_response(response.content, max_queries)
 
             logger.info(f"Generated {len(follow_up_queries)} follow-up queries")
@@ -282,5 +288,7 @@ Generate {max_queries} targeted follow-up search queries to explore these subtop
     def get_model_info(self) -> Dict[str, Any]:
         """Get information about the current model being used."""
         return self.model_manager.get_model_info(
-            self.model_manager.config.get_model_for_task(TaskType.SEARCH_QUERY_GENERATION)
+            self.model_manager.config_manager.config.get_model_for_task(
+                TaskType.SEARCH_QUERY_GENERATION
+            )
         )

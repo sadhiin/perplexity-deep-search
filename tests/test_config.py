@@ -19,7 +19,9 @@ from config import (
     TaskType,
     LLMProvider,
     ModelConfig,
-    LLMConfiguration
+    LLMConfiguration,
+    RateLimitConfig,
+    ConfigurationManager
 )
 from models.model_manager import ModelManager
 from models.search_query_llm import SearchQueryLLM
@@ -84,6 +86,99 @@ def test_model_manager():
         print(f"❌ Model manager test failed: {e}")
 
     print("\n" + "=" * 60)
+
+
+def test_rate_limit_and_cost_controls():
+    """Test rate limiting and cost-aware selection logic."""
+    print("⚖️ Testing Rate Limiting & Cost Optimization")
+    print("=" * 60)
+
+    try:
+        from types import SimpleNamespace
+        import time
+
+        os.environ.setdefault("OPENAI_API_KEY", "test-openai")
+        os.environ.setdefault("GROQ_API_KEY", "test-groq")
+
+        shared_models = {
+            "expensive-model": ModelConfig(
+                provider=LLMProvider.OPENAI,
+                model_name="expensive-model",
+                api_key_env="OPENAI_API_KEY",
+                cost_per_1k_input=10.0,
+                cost_per_1k_output=10.0,
+            ),
+            "cheap-model": ModelConfig(
+                provider=LLMProvider.GROQ,
+                model_name="cheap-model",
+                api_key_env="GROQ_API_KEY",
+                cost_per_1k_input=0.5,
+                cost_per_1k_output=0.5,
+            ),
+        }
+
+        fallback_chain = {task: ["cheap-model", "expensive-model"] for task in TaskType}
+        task_assignments = {task: "expensive-model" for task in TaskType}
+
+        custom_config = LLMConfiguration(
+            task_models=task_assignments,
+            models=shared_models,
+            fallback_chains=fallback_chain,
+            rate_limits={
+                LLMProvider.OPENAI: RateLimitConfig(requests_per_minute=5),
+                LLMProvider.GROQ: RateLimitConfig(requests_per_minute=1),
+            },
+            cost_optimization=True,
+            enable_fallbacks=True,
+        )
+
+        config_manager = ConfigurationManager(custom_config)
+        model_manager = ModelManager(config_manager)
+
+        class DummyModel:
+            def __init__(self, name: str):
+                self.name = name
+
+            def invoke(self, *_, **__):
+                return SimpleNamespace(content=f"dummy response from {self.name}")
+
+        def fake_create(self, model_name: str):
+            return DummyModel(model_name)
+
+        model_manager._create_model_instance = fake_create.__get__(model_manager, ModelManager)
+
+        preferred = model_manager._select_cost_optimized_model(
+            TaskType.SEARCH_QUERY_GENERATION,
+            "expensive-model",
+        )
+        print(f"   Preferred model with cost optimization: {preferred}")
+
+        limiter = model_manager._rate_limiters.get(LLMProvider.GROQ)
+        if limiter:
+            with limiter._lock:
+                limiter._request_times.clear()
+                now = time.time()
+                for _ in range(limiter.requests_per_minute or 0):
+                    limiter._request_times.append(now)
+
+        rerouted = model_manager._select_cost_optimized_model(
+            TaskType.SEARCH_QUERY_GENERATION,
+            "expensive-model",
+        )
+        print(f"   Preferred model when cheap option throttled: {rerouted}")
+
+        # Clean up limiter state for other tests
+        if limiter:
+            with limiter._lock:
+                limiter._request_times.clear()
+
+        return True
+
+    except Exception as e:
+        print(f"❌ Rate limit & cost optimization test failed: {e}")
+        return False
+
+
 
 
 def test_search_query_llm():
@@ -213,6 +308,7 @@ def main():
     # Run tests
     test_configuration_system()
     test_model_manager()
+    test_rate_limit_and_cost_controls()
     test_search_query_llm()
     test_thinking_llm()
     test_backward_compatibility()

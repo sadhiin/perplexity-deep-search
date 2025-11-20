@@ -96,9 +96,10 @@ Maintain a balance between being informative and conversational, ensuring respon
             model_manager: Optional model manager instance
         """
         self.model_manager = model_manager or ModelManager()
-        self.model: BaseChatModel = self.model_manager.get_model_for_task(
-            TaskType.THINKING_REASONING
-        )
+
+    def _get_model(self, task_type: TaskType = TaskType.THINKING_REASONING) -> BaseChatModel:
+        """Fetch a model targeted for the given thinking task."""
+        return self.model_manager.get_model_for_task(task_type)
 
     def analyze_research_findings(
         self,
@@ -142,7 +143,8 @@ Structure your response with clear headings and bullet points for readability.""
                 HumanMessage(content=prompt)
             ]
 
-            response = self.model.invoke(messages)
+            model = self._get_model(TaskType.THINKING_REASONING)
+            response = model.invoke(messages)
 
             # Parse the structured response
             analysis = self._parse_analysis_response(response.content)
@@ -201,7 +203,8 @@ Use proper markdown formatting with headings, bullet points, and emphasis where 
                 HumanMessage(content=prompt)
             ]
 
-            response = self.model.invoke(messages)
+            model = self._get_model(TaskType.REPORT_GENERATION)
+            response = model.invoke(messages)
 
             logger.info("Generated comprehensive report")
             return response.content
@@ -239,7 +242,8 @@ Use proper markdown formatting with headings, bullet points, and emphasis where 
             # Add conversation history
             conversation_messages.extend(messages)
 
-            response = self.model.invoke(conversation_messages)
+            model = self._get_model(TaskType.CHAT_RESPONSE)
+            response = model.invoke(conversation_messages)
 
             logger.info("Generated chat response with reasoning")
             return response.content
@@ -295,7 +299,8 @@ Be critical but fair in your evaluation."""
                 HumanMessage(content=prompt)
             ]
 
-            response = self.model.invoke(messages)
+            model = self._get_model(TaskType.THINKING_REASONING)
+            response = model.invoke(messages)
 
             # Parse evaluation results
             evaluation = self._parse_evaluation_response(response.content)
@@ -352,7 +357,8 @@ Show your thinking process clearly at each step."""
                 HumanMessage(content=prompt)
             ]
 
-            response = self.model.invoke(messages)
+            model = self._get_model(TaskType.THINKING_REASONING)
+            response = model.invoke(messages)
 
             # Parse reasoning steps
             reasoning = self._parse_reasoning_response(response.content)
@@ -430,5 +436,7 @@ Show your thinking process clearly at each step."""
     def get_model_info(self) -> Dict[str, Any]:
         """Get information about the current thinking model."""
         return self.model_manager.get_model_info(
-            self.model_manager.config.get_model_for_task(TaskType.THINKING_REASONING)
+            self.model_manager.config_manager.config.get_model_for_task(
+                TaskType.THINKING_REASONING
+            )
         )
