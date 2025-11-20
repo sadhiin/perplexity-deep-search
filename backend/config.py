@@ -72,69 +72,69 @@ class LLMConfiguration:
         if not self.fallback_chains:
             self._setup_default_fallbacks()
 
-        def _setup_default_models(self):
+    def _setup_default_models(self):
         """Setup default model configurations."""
-            self.models = {
-                # Primary models from Groq (as requested)
-                "llama-3.3-70b-versatile": ModelConfig(
-                    provider=LLMProvider.GROQ,
-                    model_name="llama-3.3-70b-versatile",
-                    temperature=0.3,  # Lower for search queries
-                    max_tokens=2000,
-                    api_key_env="GROQ_API_KEY"
-                ),
-                # Additional Groq models for variety
-                "gpt-oss-120b": ModelConfig(
-                    provider=LLMProvider.GROQ,
-                    model_name="openai/gpt-oss-120b",
-                    temperature=0.3,
-                    max_tokens=1000,
-                    api_key_env="GROQ_API_KEY"
-                ),
+        self.models = {
+            # Primary models from Groq (as requested)
+            "llama-3.3-70b-versatile": ModelConfig(
+                provider=LLMProvider.GROQ,
+                model_name="llama-3.3-70b-versatile",
+                temperature=0.3,  # Lower for search queries
+                max_tokens=2000,
+                api_key_env="GROQ_API_KEY"
+            ),
+            # Additional Groq models for variety
+            "gpt-oss-120b": ModelConfig(
+                provider=LLMProvider.GROQ,
+                model_name="openai/gpt-oss-120b",
+                temperature=0.3,
+                max_tokens=1000,
+                api_key_env="GROQ_API_KEY"
+            ),
 
-                # OpenAI models (optional fallbacks)
-                "gpt-4o-mini": ModelConfig(
-                    provider=LLMProvider.OPENAI,
-                    model_name="gpt-4o-mini",
-                    temperature=0.3,
-                    max_tokens=500,
-                    api_key_env="OPENAI_API_KEY"
-                ),
-                "gpt-4o": ModelConfig(
-                    provider=LLMProvider.OPENAI,
-                    model_name="gpt-4o",
-                    temperature=0.7,
-                    max_tokens=4000,
-                    api_key_env="OPENAI_API_KEY"
-                ),
+            # OpenAI models (optional fallbacks)
+            "gpt-4o-mini": ModelConfig(
+                provider=LLMProvider.OPENAI,
+                model_name="gpt-4o-mini",
+                temperature=0.3,
+                max_tokens=500,
+                api_key_env="OPENAI_API_KEY"
+            ),
+            "gpt-4o": ModelConfig(
+                provider=LLMProvider.OPENAI,
+                model_name="gpt-4o",
+                temperature=0.7,
+                max_tokens=4000,
+                api_key_env="OPENAI_API_KEY"
+            ),
 
-                # Anthropic models (optional)
-                "claude-3-5-sonnet-20241022": ModelConfig(
-                    provider=LLMProvider.ANTHROPIC,
-                    model_name="claude-3-5-sonnet-20241022",
-                    temperature=0.7,
-                    max_tokens=4000,
-                    api_key_env="ANTHROPIC_API_KEY"
-                ),
+            # Anthropic models (optional)
+            "claude-3-5-sonnet-20241022": ModelConfig(
+                provider=LLMProvider.ANTHROPIC,
+                model_name="claude-3-5-sonnet-20241022",
+                temperature=0.7,
+                max_tokens=4000,
+                api_key_env="ANTHROPIC_API_KEY"
+            ),
 
-                # Google models (for future expansion)
-                "gemini-2.5-pro": ModelConfig(
-                    provider=LLMProvider.GOOGLE,
-                    model_name="gemini-2.5-pro",
-                    temperature=0.3,
-                    max_tokens=4000,
-                    api_key_env="GOOGLE_API_KEY"
-                ),
-                "gemini-2.5-flash-lite": ModelConfig(
-                    provider=LLMProvider.GOOGLE,
-                    model_name="gemini-2.5-flash-lite",
-                    temperature=0.7,
-                    max_tokens=4000,
-                    api_key_env="GOOGLE_API_KEY"
-                ),
+            # Google models (for future expansion)
+            "gemini-2.5-pro": ModelConfig(
+                provider=LLMProvider.GOOGLE,
+                model_name="gemini-2.5-pro",
+                temperature=0.3,
+                max_tokens=4000,
+                api_key_env="GOOGLE_API_KEY"
+            ),
+            "gemini-2.5-flash-lite": ModelConfig(
+                provider=LLMProvider.GOOGLE,
+                model_name="gemini-2.5-flash-lite",
+                temperature=0.7,
+                max_tokens=4000,
+                api_key_env="GOOGLE_API_KEY"
+            ),
 
-                # Additional models can be added here   
-            }
+            # Additional models can be added here   
+        }
 
     def _setup_default_task_assignments(self):
         """Setup default task to model assignments."""
@@ -149,7 +149,7 @@ class LLMConfiguration:
         """Setup default fallback chains."""
         self.fallback_chains = {
             TaskType.SEARCH_QUERY_GENERATION: [
-                'openai/gpt-oss-120b',
+                "gpt-oss-120b",
                 "llama-3.3-70b-versatile",
                 "gpt-4o-mini",
                 "gemini-2.5-flash-lite"
