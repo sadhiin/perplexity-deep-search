@@ -22,6 +22,7 @@ class LLMProvider(Enum):
     GROQ = "groq"
     ANTHROPIC = "anthropic"
     GOOGLE = "google"
+    DEEPSEEK = "deepseek"
 
 
 class TaskType(Enum):
@@ -111,6 +112,17 @@ class LLMConfiguration:
                 cost_per_1k_input=1.0,
                 cost_per_1k_output=1.0,
             ),
+            # DeepSeek reasoning model
+            "deepseek-r1": ModelConfig(
+                provider=LLMProvider.DEEPSEEK,
+                model_name="deepseek-reasoner",
+                temperature=0.2,
+                max_tokens=6000,
+                api_key_env="DEEPSEEK_API_KEY",
+                base_url="https://api.deepseek.com",
+                cost_per_1k_input=0.55,
+                cost_per_1k_output=2.19,
+            ),
             # OpenAI models (optional fallbacks)
             "gpt-4o-mini": ModelConfig(
                 provider=LLMProvider.OPENAI,
@@ -166,7 +178,7 @@ class LLMConfiguration:
         """Setup default task to model assignments."""
         self.task_models = {
             TaskType.SEARCH_QUERY_GENERATION: "llama-3.3-70b-versatile",
-            TaskType.THINKING_REASONING: "gemini-2.5-pro",
+            TaskType.THINKING_REASONING: "deepseek-r1",
             TaskType.REPORT_GENERATION: "gemini-2.5-flash-lite",
             TaskType.CHAT_RESPONSE: "llama-3.3-70b-versatile",
         }
@@ -181,6 +193,7 @@ class LLMConfiguration:
                 "gemini-2.5-flash-lite",
             ],
             TaskType.THINKING_REASONING: [
+                "deepseek-r1",
                 "gemini-2.5-pro",
                 "llama-3.3-70b-versatile",
                 "gpt-4o",
@@ -207,6 +220,7 @@ class LLMConfiguration:
             LLMProvider.OPENAI: RateLimitConfig(requests_per_minute=80),
             LLMProvider.ANTHROPIC: RateLimitConfig(requests_per_minute=50),
             LLMProvider.GOOGLE: RateLimitConfig(requests_per_minute=60),
+            LLMProvider.DEEPSEEK: RateLimitConfig(requests_per_minute=40),
         }
 
     def get_model_for_task(self, task_type: TaskType) -> str:
@@ -327,6 +341,7 @@ def check_required_env_vars() -> Dict[str, str]:
     required_vars = {
         "GROQ_API_KEY": "Required for Groq models (backward compatibility)",
         "OPENAI_API_KEY": "Required for OpenAI models (GPT-4, GPT-4o-mini)",
+        "DEEPSEEK_API_KEY": "Required for DeepSeek R1 reasoning models",
         "GOOGLE_API_KEY": "Optional for Google Gemini models",
         "ANTHROPIC_API_KEY": "Optional for Claude models",
     }
