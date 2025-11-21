@@ -266,6 +266,28 @@ class ModelManager:
 
         return ChatGoogleGenerativeAI(**params)
 
+    def _create_deepseek_model(self, config: ModelConfig) -> ChatOpenAI:
+        """Create a DeepSeek R1 model instance via the OpenAI-compatible API."""
+        api_key = os.getenv(config.api_key_env)
+        if not api_key:
+            raise ModelInstantiationError(f"Missing API key: {config.api_key_env}")
+
+        params = {
+            "model": config.model_name,
+            "temperature": config.temperature,
+            "api_key": api_key,
+            "timeout": config.timeout,
+            "max_retries": config.max_retries,
+            "base_url": config.base_url or "https://api.deepseek.com",
+        }
+
+        if config.max_tokens:
+            params["max_tokens"] = config.max_tokens
+
+        params.update(config.custom_params)
+
+        return ChatOpenAI(**params)
+
     def _create_model_instance(self, model_name: str) -> BaseChatModel:
         """Create a model instance based on provider."""
         config = self.config_manager.config.get_model_config(model_name)
@@ -279,6 +301,8 @@ class ModelManager:
                 model_instance = self._create_groq_model(config)
             elif config.provider == LLMProvider.GOOGLE:
                 model_instance = self._create_google_model(config)
+            elif config.provider == LLMProvider.DEEPSEEK:
+                model_instance = self._create_deepseek_model(config)
             else:
                 raise ModelInstantiationError(
                     f"Unsupported provider: {config.provider}"
