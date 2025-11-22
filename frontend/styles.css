@@ -324,6 +324,51 @@ body {
     border-bottom-left-radius: 4px;
 }
 
+.message-content a {
+    color: #4c6ef5;
+    text-decoration: underline;
+    word-break: break-all;
+}
+
+[data-theme="dark"] .message-content a {
+    color: #8ab4ff;
+}
+
+.message-content pre {
+    background-color: rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    padding: 0.75rem;
+    margin: 0.5rem 0 0;
+    overflow-x: auto;
+    font-size: 0.9rem;
+}
+
+[data-theme="dark"] .message-content pre {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.message-content code {
+    background-color: rgba(0, 0, 0, 0.08);
+    border-radius: 6px;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.9rem;
+}
+
+[data-theme="dark"] .message-content code {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.message-image {
+    display: block;
+    margin-top: 0.5rem;
+}
+
+.message-image img {
+    max-width: 100%;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+}
+
 .message-time {
     font-size: 0.75rem;
     opacity: 0.6;
