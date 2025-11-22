@@ -235,9 +235,31 @@ function updateChatList() {
         chatItem.onclick = () => loadChat(chat.id);
 
         chatItem.innerHTML = `
-            <div class="chat-item-title">${chat.title}</div>
-            <div class="chat-item-time">${formatTime(chat.lastMessageAt)}</div>
+            <div class="chat-item-main">
+                <div class="chat-item-title">${chat.title}</div>
+                <div class="chat-item-time">${formatTime(chat.lastMessageAt)}</div>
+            </div>
+            <div class="chat-item-actions">
+                <button class="chat-item-btn rename" title="Rename chat" aria-label="Rename chat">
+                    ✏️
+                </button>
+                <button class="chat-item-btn delete" title="Delete chat" aria-label="Delete chat">
+                    🗑️
+                </button>
+            </div>
         `;
+
+        const renameBtn = chatItem.querySelector('.chat-item-btn.rename');
+        renameBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            renameChat(chat.id);
+        });
+
+        const deleteBtn = chatItem.querySelector('.chat-item-btn.delete');
+        deleteBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            deleteChat(chat.id);
+        });
 
         chatList.appendChild(chatItem);
     });
@@ -336,6 +358,48 @@ function saveChats() {
     localStorage.setItem('chats', JSON.stringify(chats));
 }
 
+// Rename a chat conversation
+function renameChat(chatId) {
+    const chat = chats.find(c => c.id === chatId);
+    if (!chat) return;
+
+    const newTitle = prompt('Enter a new name for this chat:', chat.title || 'New Chat');
+    if (newTitle === null) return;
+
+    const trimmed = newTitle.trim();
+    if (!trimmed || trimmed === chat.title) return;
+
+    chat.title = trimmed;
+    saveChats();
+    updateChatList();
+}
+
+// Delete a chat and fallback to another conversation if needed
+function deleteChat(chatId) {
+    const index = chats.findIndex(c => c.id === chatId);
+    if (index === -1) return;
+
+    const confirmed = window.confirm('Delete this chat? This cannot be undone.');
+    if (!confirmed) return;
+
+    const wasActive = chats[index].id === currentChatId;
+    chats.splice(index, 1);
+    saveChats();
+
+    if (chats.length === 0) {
+        currentChatId = null;
+        messagesContainer.innerHTML = '';
+        createNewChat();
+        return;
+    }
+
+    if (wasActive) {
+        loadChat(chats[0].id);
+    } else {
+        updateChatList();
+    }
+}
+
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', init);
 
@@ -345,6 +409,8 @@ if (typeof module !== 'undefined' && module.exports) {
         addMessage,
         getAIResponse,
         createNewChat,
-        updateCurrentChat
+        updateCurrentChat,
+        renameChat,
+        deleteChat
     };
 }

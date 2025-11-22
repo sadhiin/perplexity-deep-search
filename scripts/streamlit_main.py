@@ -9,9 +9,12 @@ if "final_report_generated" not in st.session_state:
     st.session_state["final_markdown_report"] = ""
     st.session_state["search_results"] = []
     st.session_state["claim_confidences"] = []
+    st.session_state["reasoning_trace"] = []
 
 if "claim_confidences" not in st.session_state:
     st.session_state["claim_confidences"] = []
+if "reasoning_trace" not in st.session_state:
+    st.session_state["reasoning_trace"] = []
 
 
 # Function to simulate streaming of data
@@ -44,6 +47,9 @@ def fetch_results_streaming(query):
             ]
             st.session_state["claim_confidences"] = chunk["final_report_generator"].get(
                 "claim_confidences", []
+            )
+            st.session_state["reasoning_trace"] = chunk["final_report_generator"].get(
+                "reasoning_trace", []
             )
         yield
 
@@ -137,6 +143,12 @@ if query:
                     rationale = entry.get("rationale")
                     if rationale:
                         st.caption(f"Why: {rationale}")
+                st.divider()
+            reasoning_trace = st.session_state.get("reasoning_trace", [])
+            if reasoning_trace:
+                with st.expander("Thinking process", expanded=False):
+                    for idx, step in enumerate(reasoning_trace, 1):
+                        st.markdown(f"**Step {idx}.** {step}")
                 st.divider()
             st.markdown(st.session_state["final_markdown_report"])
 
