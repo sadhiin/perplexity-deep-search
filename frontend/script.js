@@ -10,6 +10,69 @@ const sidebar = document.querySelector('.sidebar');
 const charCount = document.querySelector('.char-count');
 const themeToggle = document.getElementById('theme-toggle');
 
+// Markdown/HTML helpers
+function escapeHtml(text = '') {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function autoLinkUrls(html) {
+    return html.replace(/https?:\/\/[^\s<]+/g, (url, offset, full) => {
+        const lastOpen = full.lastIndexOf('<', offset);
+        const lastClose = full.lastIndexOf('>', offset);
+        if (lastOpen > lastClose) {
+            return url;
+        }
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+    });
+}
+
+function applyInlineFormatting(safeText) {
+    let formatted = safeText;
+
+    formatted = formatted.replace(/!\[([^\]]*?)\]\((https?:\/\/[^\s)]+)\)/g, (_, alt, url) => {
+        const altText = alt || 'Image';
+        return `<span class="message-image"><img src="${url}" alt="${altText}" loading="lazy" /></span>`;
+    });
+
+    formatted = formatted.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, label, url) =>
+        `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`
+    );
+
+    formatted = formatted.replace(/`([^`]+)`/g, (_, code) => `<code>${code}</code>`);
+    formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    formatted = autoLinkUrls(formatted);
+
+    return formatted.replace(/\n/g, '<br>');
+}
+
+function formatMessageContent(text = '') {
+    const codeBlockRegex = /```([\s\S]*?)```/g;
+    let lastIndex = 0;
+    let result = '';
+    let match;
+
+    while ((match = codeBlockRegex.exec(text)) !== null) {
+        const segment = text.slice(lastIndex, match.index);
+        if (segment) {
+            result += applyInlineFormatting(escapeHtml(segment));
+        }
+
+        const codeContent = escapeHtml(match[1].trim());
+        result += `<pre><code>${codeContent}</code></pre>`;
+        lastIndex = match.index + match[0].length;
+    }
+
+    const remaining = text.slice(lastIndex);
+    if (remaining) {
+        result += applyInlineFormatting(escapeHtml(remaining));
+    }
+
+    return result || '';
+}
+
 // State management
 let currentChatId = null;
 let chats = JSON.parse(localStorage.getItem('chats')) || [];
@@ -119,7 +182,7 @@ function addMessage(content, type) {
 
     const messageContent = document.createElement('div');
     messageContent.className = 'message-content';
-    messageContent.textContent = content;
+    messageContent.innerHTML = formatMessageContent(content);
 
     const messageTime = document.createElement('div');
     messageTime.className = 'message-time';
