@@ -40,6 +40,7 @@ class DeepResearchState(TypedDict):
     report_markdown: str
     query_generation_count: int
     claim_confidences: list
+    reasoning_trace: Annotated[list, operator.add]
 
 
 logger = logging.getLogger(__name__)
@@ -261,21 +262,39 @@ def final_report_generator(state: DeepResearchState):
     )
     final_report = final_report_match.group(1) if final_report_match else ""
 
-    confidence_scores = []
+    thinking_llm = None
     try:
         thinking_llm = get_thinking_llm()
-        confidence_scores = thinking_llm.assess_claim_confidence(
-            report_markdown=final_report,
-            search_results=search_results,
-            user_query=user_query,
-        )
     except Exception as e:
-        logger.error("Failed to generate confidence scores: %s", e)
+        logger.error("Failed to initialize ThinkingLLM: %s", e)
+
+    reasoning_trace = []
+    if thinking_llm:
+        try:
+            reasoning_result = thinking_llm.reason_step_by_step(
+                problem=user_query,
+                context=search_results_str,
+            )
+            reasoning_trace = reasoning_result.get("reasoning_steps", []) or []
+        except Exception as e:
+            logger.error("Failed to generate reasoning trace: %s", e)
+
+    confidence_scores = []
+    if thinking_llm:
+        try:
+            confidence_scores = thinking_llm.assess_claim_confidence(
+                report_markdown=final_report,
+                search_results=search_results,
+                user_query=user_query,
+            )
+        except Exception as e:
+            logger.error("Failed to generate confidence scores: %s", e)
 
     return {
         "individual_page_summaries": summaries,
         "report_markdown": final_report,
         "claim_confidences": confidence_scores,
+        "reasoning_trace": reasoning_trace,
     }
 
 
