@@ -10,6 +10,33 @@ const sidebar = document.querySelector('.sidebar');
 const charCount = document.querySelector('.char-count');
 const themeToggle = document.getElementById('theme-toggle');
 
+const MESSAGE_TYPES = {
+    user: { label: 'You' },
+    assistant: { label: 'Assistant' },
+    system: { label: 'System' },
+    research: { label: 'Research update' },
+};
+
+function normalizeMessageType(type) {
+    if (type === 'bot') {
+        return 'assistant';
+    }
+    return MESSAGE_TYPES[type] ? type : 'assistant';
+}
+
+function createMessageRecord(content, type, timestamp) {
+    return {
+        content,
+        type: normalizeMessageType(type),
+        timestamp: timestamp || new Date().toISOString(),
+    };
+}
+
+function truncateText(text, maxLength = 80) {
+    if (!text) return '';
+    return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
+}
+
 // Markdown/HTML helpers
 function escapeHtml(text = '') {
     const div = document.createElement('div');
@@ -86,7 +113,12 @@ const API_BASE_URL = window.API_BASE_URL || 'http://localhost:8000'; // Will be 
 function init() {
     loadChats();
     setupEventListeners();
-    createNewChat();
+    if (chats.length === 0) {
+        createNewChat();
+    } else {
+        currentChatId = chats[0].id;
+        loadChat(currentChatId);
+    }
     adjustTextareaHeight();
     applyTheme();
 
@@ -118,7 +150,9 @@ async function handleMessageSubmit(e) {
     if (!message || isTyping) return;
 
     // Add user message
-    addMessage(message, 'user');
+    const userRecord = createMessageRecord(message, 'user');
+    addMessage(userRecord.content, userRecord.type, userRecord.timestamp);
+    updateCurrentChat(userRecord);
     messageInput.value = '';
     updateCharCount();
     adjustTextareaHeight();
@@ -126,19 +160,33 @@ async function handleMessageSubmit(e) {
     // Show typing indicator
     showTypingIndicator();
 
+    // Provide research progress update
+    const researchRecord = createMessageRecord(
+        `Researching “${truncateText(message, 120)}”…`,
+        'research'
+    );
+    addMessage(researchRecord.content, researchRecord.type, researchRecord.timestamp);
+    updateCurrentChat(researchRecord);
+
     try {
         // Simulate AI response (replace with actual API call)
         const response = await getAIResponse(message);
         hideTypingIndicator();
-        addMessage(response, 'bot');
+        const assistantRecord = createMessageRecord(response, 'assistant');
+        addMessage(assistantRecord.content, assistantRecord.type, assistantRecord.timestamp);
+        updateCurrentChat(assistantRecord);
     } catch (error) {
         hideTypingIndicator();
-        addMessage('Sorry, I encountered an error. Please try again.', 'bot');
+        const errorRecord = createMessageRecord(
+            'Sorry, I encountered an error. Please try again.',
+            'system'
+        );
+        addMessage(errorRecord.content, errorRecord.type, errorRecord.timestamp);
+        updateCurrentChat(errorRecord);
         console.error('Error getting AI response:', error);
     }
 
     // Update chat in history
-    updateCurrentChat(message);
     saveChats();
 }
 
@@ -176,17 +224,31 @@ function updateSendButtonState() {
 }
 
 // Add message to chat
-function addMessage(content, type) {
+function addMessage(content, type, timestamp) {
+    const normalizedType = normalizeMessageType(type);
     const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${type}`;
+    messageDiv.className = `message ${normalizedType}`;
 
     const messageContent = document.createElement('div');
     messageContent.className = 'message-content';
-    messageContent.innerHTML = formatMessageContent(content);
+
+    const roleMeta = MESSAGE_TYPES[normalizedType];
+    if (roleMeta?.label) {
+        const label = document.createElement('div');
+        label.className = 'message-role';
+        label.textContent = roleMeta.label;
+        messageContent.appendChild(label);
+    }
+
+    const messageBody = document.createElement('div');
+    messageBody.className = 'message-text';
+    messageBody.innerHTML = formatMessageContent(content);
+    messageContent.appendChild(messageBody);
 
     const messageTime = document.createElement('div');
     messageTime.className = 'message-time';
-    messageTime.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const timeValue = timestamp ? new Date(timestamp) : new Date();
+    messageTime.textContent = timeValue.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     messageDiv.appendChild(messageContent);
     messageDiv.appendChild(messageTime);
@@ -247,45 +309,45 @@ async function getAIResponse(message) {
 // Create new chat
 function createNewChat() {
     const chatId = Date.now().toString();
+    const welcomeRecord = createMessageRecord(
+        "Welcome to AI Chat. I'm ready to help you research, analyze, and discuss any topic.",
+        'system'
+    );
     const newChat = {
         id: chatId,
         title: 'New Chat',
-        messages: [],
-        createdAt: new Date().toISOString(),
-        lastMessageAt: new Date().toISOString()
+        messages: [welcomeRecord],
+        createdAt: welcomeRecord.timestamp,
+        lastMessageAt: welcomeRecord.timestamp
     };
 
     chats.unshift(newChat);
     currentChatId = chatId;
 
-    // Clear messages and show welcome message
-    messagesContainer.innerHTML = `
-        <div class="welcome-message">
-            <div class="welcome-content">
-                <h2>Welcome to AI Chat</h2>
-                <p>Ask me anything! I'm here to help you with information, analysis, and conversation.</p>
-            </div>
-        </div>
-    `;
-
     updateChatList();
     saveChats();
+    loadChat(chatId);
 }
 
 // Update current chat with new message
-function updateCurrentChat(message) {
-    const chat = chats.find(c => c.id === currentChatId);
-    if (chat) {
-        chat.messages.push({ content: message, type: 'user', timestamp: new Date().toISOString() });
-        chat.lastMessageAt = new Date().toISOString();
-
-        // Update title if it's still "New Chat"
-        if (chat.title === 'New Chat') {
-            chat.title = message.length > 30 ? message.substring(0, 30) + '...' : message;
-        }
-
-        updateChatList();
+function updateCurrentChat(messageRecord) {
+    if (!messageRecord) return;
+    if (typeof messageRecord === 'string') {
+        messageRecord = createMessageRecord(messageRecord, 'user');
     }
+
+    const chat = chats.find(c => c.id === currentChatId);
+    if (!chat) return;
+
+    chat.messages.push(messageRecord);
+    chat.lastMessageAt = messageRecord.timestamp || new Date().toISOString();
+
+    if (chat.title === 'New Chat' && messageRecord.type === 'user') {
+        const preview = truncateText(messageRecord.content, 30);
+        chat.title = preview || chat.title;
+    }
+
+    updateChatList();
 }
 
 // Update chat list in sidebar
@@ -338,19 +400,18 @@ function loadChat(chatId) {
     // Clear messages
     messagesContainer.innerHTML = '';
 
-    // Load messages
     if (chat.messages.length === 0) {
         messagesContainer.innerHTML = `
             <div class="welcome-message">
                 <div class="welcome-content">
-                    <h2>Welcome to AI Chat</h2>
+                    <h2>Start chatting</h2>
                     <p>Ask me anything! I'm here to help you with information, analysis, and conversation.</p>
                 </div>
             </div>
         `;
     } else {
         chat.messages.forEach(msg => {
-            addMessage(msg.content, msg.type);
+            addMessage(msg.content, msg.type, msg.timestamp);
         });
     }
 
@@ -413,6 +474,18 @@ function scrollToBottom() {
 // Load chats from localStorage
 function loadChats() {
     chats = JSON.parse(localStorage.getItem('chats')) || [];
+
+    chats.forEach(chat => {
+        chat.messages = (chat.messages || []).map(msg => ({
+            content: msg.content || '',
+            type: normalizeMessageType(msg.type),
+            timestamp: msg.timestamp || new Date().toISOString(),
+        }));
+        if (!chat.lastMessageAt && chat.messages.length) {
+            chat.lastMessageAt = chat.messages[chat.messages.length - 1].timestamp;
+        }
+    });
+
     updateChatList();
 }
 
