@@ -227,6 +227,19 @@ body {
     color: var(--active-text);
 }
 
+.chat-item-snippet {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-top: 0.2rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-item.active .chat-item-snippet {
+    color: rgba(255, 255, 255, 0.85);
+}
+
 .chat-item-actions {
     display: flex;
     gap: 0.25rem;
@@ -253,6 +266,33 @@ body {
 .chat-item-btn:hover,
 .chat-item-btn:focus-visible {
     background-color: var(--hover-bg);
+}
+
+.chat-search {
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.chat-search input {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.9rem;
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.chat-search input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.chat-empty {
+    padding: 1rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-align: center;
 }
 
 /* Main chat area */

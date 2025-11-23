@@ -11,6 +11,7 @@ const charCount = document.querySelector('.char-count');
 const themeToggle = document.getElementById('theme-toggle');
 const bookmarkList = document.getElementById('bookmark-list');
 const bookmarkCount = document.getElementById('bookmark-count');
+const chatSearchInput = document.getElementById('chat-search');
 
 const MESSAGE_TYPES = {
     user: { label: 'You' },
@@ -18,6 +19,8 @@ const MESSAGE_TYPES = {
     system: { label: 'System' },
     research: { label: 'Research update' },
 };
+
+let chatSearchTerm = '';
 
 function generateMessageId() {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -44,6 +47,35 @@ function createMessageRecord(content, type, timestamp) {
 function truncateText(text, maxLength = 80) {
     if (!text) return '';
     return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
+}
+
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function highlightSearchMatch(text) {
+    const safe = escapeHtml(text || '');
+    const term = chatSearchTerm.trim();
+    if (!term) return safe;
+    const regex = new RegExp(escapeRegExp(term), 'ig');
+    return safe.replace(regex, (match) => `<mark>${match}</mark>`);
+}
+
+function chatMatchesSearch(chat, lowerTerm) {
+    if (!lowerTerm) return true;
+    const title = (chat.title || '').toLowerCase();
+    if (title.includes(lowerTerm)) return true;
+    return (chat.messages || []).some((msg) =>
+        (msg.content || '').toLowerCase().includes(lowerTerm)
+    );
+}
+
+function getChatSnippet(chat) {
+    if (!chat.messages || !chat.messages.length) {
+        return '';
+    }
+    const last = chat.messages[chat.messages.length - 1];
+    return truncateText(last.content || '', 60);
 }
 
 // Markdown/HTML helpers
@@ -142,6 +174,9 @@ function setupEventListeners() {
     newChatBtn.addEventListener('click', createNewChat);
     menuToggle.addEventListener('click', toggleSidebar);
     themeToggle.addEventListener('click', toggleTheme);
+    if (chatSearchInput) {
+        chatSearchInput.addEventListener('input', handleChatSearch);
+    }
 
     // Close sidebar when clicking outside on mobile
     document.addEventListener('click', (e) => {
@@ -520,15 +555,31 @@ function updateCurrentChat(messageRecord) {
 function updateChatList() {
     chatList.innerHTML = '';
 
-    chats.forEach(chat => {
+    const term = chatSearchTerm.trim().toLowerCase();
+    const filteredChats = term ? chats.filter((chat) => chatMatchesSearch(chat, term)) : chats;
+
+    if (!filteredChats.length) {
+        const emptyMessage = term
+            ? `No chats match "${escapeHtml(chatSearchTerm)}".`
+            : 'No chats yet.';
+        chatList.innerHTML = `<div class="chat-empty">${emptyMessage}</div>`;
+        return;
+    }
+
+    filteredChats.forEach(chat => {
         const chatItem = document.createElement('div');
         chatItem.className = `chat-item ${chat.id === currentChatId ? 'active' : ''}`;
         chatItem.onclick = () => loadChat(chat.id);
 
+        const titleHTML = highlightSearchMatch(chat.title || 'Untitled chat');
+        const snippet = getChatSnippet(chat);
+        const snippetHTML = snippet ? highlightSearchMatch(snippet) : '';
+
         chatItem.innerHTML = `
             <div class="chat-item-main">
-                <div class="chat-item-title">${chat.title}</div>
+                <div class="chat-item-title">${titleHTML}</div>
                 <div class="chat-item-time">${formatTime(chat.lastMessageAt)}</div>
+                ${snippetHTML ? `<div class="chat-item-snippet">${snippetHTML}</div>` : ''}
             </div>
             <div class="chat-item-actions">
                 <button class="chat-item-btn rename" title="Rename chat" aria-label="Rename chat">
@@ -822,4 +873,8 @@ if (typeof module !== 'undefined' && module.exports) {
         toggleReaction,
         refreshBookmarksPanel
     };
+}
+function handleChatSearch(event) {
+    chatSearchTerm = event.target.value || '';
+    updateChatList();
 }
