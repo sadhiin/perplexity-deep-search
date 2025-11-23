@@ -12,6 +12,12 @@ const themeToggle = document.getElementById('theme-toggle');
 const bookmarkList = document.getElementById('bookmark-list');
 const bookmarkCount = document.getElementById('bookmark-count');
 const chatSearchInput = document.getElementById('chat-search');
+const chatSummarySection = document.getElementById('chat-summary');
+const chatSummaryContent = document.getElementById('chat-summary-content');
+const chatSummaryMeta = document.getElementById('chat-summary-meta');
+const chatSummaryRefreshBtn = document.getElementById('summary-refresh-btn');
+const chatTagsList = document.getElementById('chat-tags-list');
+const chatTagInput = document.getElementById('chat-tag-input');
 
 const MESSAGE_TYPES = {
     user: { label: 'You' },
@@ -65,12 +71,18 @@ function chatMatchesSearch(chat, lowerTerm) {
     if (!lowerTerm) return true;
     const title = (chat.title || '').toLowerCase();
     if (title.includes(lowerTerm)) return true;
+    if (Array.isArray(chat.tags) && chat.tags.some((tag) => tag.toLowerCase().includes(lowerTerm))) {
+        return true;
+    }
     return (chat.messages || []).some((msg) =>
         (msg.content || '').toLowerCase().includes(lowerTerm)
     );
 }
 
 function getChatSnippet(chat) {
+    if (chat.summary) {
+        return chat.summary;
+    }
     if (!chat.messages || !chat.messages.length) {
         return '';
     }
@@ -177,6 +189,12 @@ function setupEventListeners() {
     if (chatSearchInput) {
         chatSearchInput.addEventListener('input', handleChatSearch);
     }
+    if (chatSummaryRefreshBtn) {
+        chatSummaryRefreshBtn.addEventListener('click', handleSummaryRefresh);
+    }
+    if (chatTagInput) {
+        chatTagInput.addEventListener('keydown', handleTagInputKeyDown);
+    }
 
     // Close sidebar when clicking outside on mobile
     document.addEventListener('click', (e) => {
@@ -218,6 +236,24 @@ function handleKeyDown(e) {
         e.preventDefault();
         messageForm.dispatchEvent(new Event('submit'));
     }
+}
+
+function handleChatSearch(event) {
+    chatSearchTerm = event.target.value || '';
+    updateChatList();
+}
+
+function handleSummaryRefresh() {
+    forceSummarizeCurrentChat();
+}
+
+function handleTagInputKeyDown(event) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const tagValue = (event.target.value || '').trim();
+    if (!tagValue) return;
+    addTagToCurrentChat(tagValue);
+    event.target.value = '';
 }
 
 // Update character count
@@ -446,6 +482,132 @@ function scrollToMessage(messageId) {
     setTimeout(() => el.classList.remove('bookmark-focus'), 1500);
 }
 
+function updateChatSummary(chat, force = false) {
+    if (!chat) return;
+    const messageCount = chat.messages.length;
+    if (!force && messageCount < MIN_SUMMARY_MESSAGES && chat.summary) {
+        return;
+    }
+
+    if (messageCount === 0) {
+        chat.summary = '';
+        chat.summaryUpdatedAt = null;
+        return;
+    }
+
+    const userMessages = chat.messages.filter((msg) => msg.type === 'user');
+    const assistantMessages = chat.messages.filter((msg) => msg.type === 'assistant');
+
+    const topic = userMessages[0]?.content || chat.messages[0]?.content || '';
+    const recentQuestions = userMessages.slice(-2).map((msg) => msg.content);
+    const latestInsight = assistantMessages[assistantMessages.length - 1]?.content || '';
+
+    const summaryParts = [];
+    if (topic) {
+        summaryParts.push(`Focus: ${truncateText(topic, 80)}`);
+    }
+    if (recentQuestions.length > 1) {
+        summaryParts.push(`Latest questions: ${truncateText(recentQuestions.join(' | '), 90)}`);
+    }
+    if (latestInsight) {
+        summaryParts.push(`Assistant insight: ${truncateText(latestInsight, 90)}`);
+    }
+    summaryParts.push(`Total turns: ${messageCount}`);
+
+    chat.summary = summaryParts.join('. ');
+    chat.summaryUpdatedAt = new Date().toISOString();
+}
+
+function renderChatSummary(chat) {
+    if (!chatSummarySection || !chatSummaryContent || !chatSummaryMeta) return;
+    if (!chat) {
+        chatSummarySection.hidden = true;
+        return;
+    }
+
+    const summaryText = (chat.summary || '').trim();
+    const hasTags = Array.isArray(chat.tags) && chat.tags.length > 0;
+
+    const hasMessages = Array.isArray(chat.messages) && chat.messages.length > 0;
+
+    if (!summaryText && !hasTags && !hasMessages) {
+        chatSummarySection.hidden = true;
+        return;
+    }
+
+    chatSummarySection.hidden = false;
+    chatSummaryContent.textContent = summaryText || 'No summary yet. Use Refresh to generate one.';
+    const updatedText = chat.summaryUpdatedAt
+        ? `Updated ${formatRelativeTime(chat.summaryUpdatedAt)}`
+        : '';
+    chatSummaryMeta.textContent = updatedText;
+    renderChatTags(chat);
+}
+
+function forceSummarizeCurrentChat() {
+    const chat = getCurrentChat();
+    if (!chat) return;
+    updateChatSummary(chat, true);
+    saveChats();
+    renderChatSummary(chat);
+    updateChatList();
+}
+
+function renderChatTags(chat) {
+    if (!chatTagsList) return;
+    chatTagsList.innerHTML = '';
+    if (!chat || !Array.isArray(chat.tags) || chat.tags.length === 0) {
+        chatTagsList.innerHTML = '<span class="chat-tag-placeholder">No tags yet.</span>';
+        return;
+    }
+
+    chat.tags.forEach((tag) => {
+        const tagEl = document.createElement('span');
+        tagEl.className = 'chat-tag';
+        tagEl.textContent = tag;
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.title = `Remove tag ${tag}`;
+        removeBtn.textContent = '×';
+        removeBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            removeTagFromCurrentChat(tag);
+        });
+        tagEl.appendChild(removeBtn);
+        chatTagsList.appendChild(tagEl);
+    });
+}
+
+function addTagToCurrentChat(tag) {
+    const chat = getCurrentChat();
+    if (!chat) return;
+
+    const normalized = tag.trim();
+    if (!normalized) return;
+
+    if (!Array.isArray(chat.tags)) {
+        chat.tags = [];
+    }
+
+    const exists = chat.tags.some((existing) => existing.toLowerCase() === normalized.toLowerCase());
+    if (exists) return;
+
+    chat.tags.push(normalized);
+    saveChats();
+    renderChatTags(chat);
+    updateChatList();
+}
+
+function removeTagFromCurrentChat(tag) {
+    const chat = getCurrentChat();
+    if (!chat || !Array.isArray(chat.tags)) return;
+
+    chat.tags = chat.tags.filter((existing) => existing !== tag);
+    saveChats();
+    renderChatTags(chat);
+    updateChatList();
+}
+
 // Show typing indicator
 function showTypingIndicator() {
     isTyping = true;
@@ -507,7 +669,10 @@ function createNewChat() {
         title: 'New Chat',
         messages: [welcomeRecord],
         createdAt: welcomeRecord.timestamp,
-        lastMessageAt: welcomeRecord.timestamp
+        lastMessageAt: welcomeRecord.timestamp,
+        summary: '',
+        summaryUpdatedAt: null,
+        tags: [],
     };
 
     chats.unshift(newChat);
@@ -548,7 +713,12 @@ function updateCurrentChat(messageRecord) {
         chat.title = preview || chat.title;
     }
 
+    if (chat.messages.length >= 6) {
+        updateChatSummary(chat);
+    }
+
     updateChatList();
+    renderChatSummary(chat);
 }
 
 // Update chat list in sidebar
@@ -574,12 +744,20 @@ function updateChatList() {
         const titleHTML = highlightSearchMatch(chat.title || 'Untitled chat');
         const snippet = getChatSnippet(chat);
         const snippetHTML = snippet ? highlightSearchMatch(snippet) : '';
+        const tagsHTML =
+            chat.tags && chat.tags.length
+                ? `<div class="chat-item-tags">${chat.tags
+                      .slice(0, 3)
+                      .map((tag) => `<span class="chat-item-tag">${highlightSearchMatch(tag)}</span>`)
+                      .join('')}</div>`
+                : '';
 
         chatItem.innerHTML = `
             <div class="chat-item-main">
                 <div class="chat-item-title">${titleHTML}</div>
                 <div class="chat-item-time">${formatTime(chat.lastMessageAt)}</div>
                 ${snippetHTML ? `<div class="chat-item-snippet">${snippetHTML}</div>` : ''}
+                ${tagsHTML}
             </div>
             <div class="chat-item-actions">
                 <button class="chat-item-btn rename" title="Rename chat" aria-label="Rename chat">
@@ -662,6 +840,7 @@ function loadChat(chatId) {
 
     updateChatList();
     refreshBookmarksPanel();
+    renderChatSummary(chat);
 }
 
 // Format time for chat list
@@ -675,6 +854,18 @@ function formatTime(dateString) {
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
     if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
 
+    return date.toLocaleDateString();
+}
+
+function formatRelativeTime(dateString) {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now - date;
+
+    if (diff < 60000) return 'moments ago';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)} hr ago`;
     return date.toLocaleDateString();
 }
 
@@ -732,6 +923,18 @@ function loadChats() {
         }));
         if (!chat.lastMessageAt && chat.messages.length) {
             chat.lastMessageAt = chat.messages[chat.messages.length - 1].timestamp;
+        }
+        if (typeof chat.summary !== 'string') {
+            chat.summary = '';
+        }
+        if (!Array.isArray(chat.tags)) {
+            chat.tags = [];
+        }
+        if (!chat.summary && chat.messages.length >= MIN_SUMMARY_MESSAGES) {
+            updateChatSummary(chat, true);
+        }
+        if (chat.summary && !chat.summaryUpdatedAt) {
+            chat.summaryUpdatedAt = new Date().toISOString();
         }
     });
 

@@ -52,6 +52,32 @@
                 </div>
             </div>
 
+            <section id="chat-summary" class="chat-summary" hidden>
+                <div class="chat-summary-header">
+                    <div>
+                        <h2>Conversation Summary</h2>
+                        <p class="chat-summary-meta" id="chat-summary-meta"></p>
+                    </div>
+                    <button id="summary-refresh-btn" class="summary-refresh-btn" type="button">
+                        Refresh Summary
+                    </button>
+                </div>
+                <p id="chat-summary-content" class="chat-summary-content"></p>
+                <div class="chat-tags">
+                    <div class="chat-tags-header">
+                        <span>Tags</span>
+                    </div>
+                    <div id="chat-tags-list" class="chat-tags-list"></div>
+                    <input
+                        type="text"
+                        id="chat-tag-input"
+                        class="chat-tag-input"
+                        placeholder="Add tag and press Enter"
+                        aria-label="Add chat tag"
+                    />
+                </div>
+            </section>
+
             <div id="messages-container" class="messages-container">
                 <div class="welcome-message">
                     <div class="welcome-content">
