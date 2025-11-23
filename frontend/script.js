@@ -9,6 +9,8 @@ const menuToggle = document.getElementById('menu-toggle');
 const sidebar = document.querySelector('.sidebar');
 const charCount = document.querySelector('.char-count');
 const themeToggle = document.getElementById('theme-toggle');
+const bookmarkList = document.getElementById('bookmark-list');
+const bookmarkCount = document.getElementById('bookmark-count');
 
 const MESSAGE_TYPES = {
     user: { label: 'You' },
@@ -16,6 +18,10 @@ const MESSAGE_TYPES = {
     system: { label: 'System' },
     research: { label: 'Research update' },
 };
+
+function generateMessageId() {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
 
 function normalizeMessageType(type) {
     if (type === 'bot') {
@@ -26,9 +32,12 @@ function normalizeMessageType(type) {
 
 function createMessageRecord(content, type, timestamp) {
     return {
+        id: generateMessageId(),
         content,
         type: normalizeMessageType(type),
         timestamp: timestamp || new Date().toISOString(),
+        isBookmarked: false,
+        reaction: null,
     };
 }
 
@@ -151,42 +160,13 @@ async function handleMessageSubmit(e) {
 
     // Add user message
     const userRecord = createMessageRecord(message, 'user');
-    addMessage(userRecord.content, userRecord.type, userRecord.timestamp);
+    addMessage(userRecord);
     updateCurrentChat(userRecord);
     messageInput.value = '';
     updateCharCount();
     adjustTextareaHeight();
 
-    // Show typing indicator
-    showTypingIndicator();
-
-    // Provide research progress update
-    const researchRecord = createMessageRecord(
-        `Researching “${truncateText(message, 120)}”…`,
-        'research'
-    );
-    addMessage(researchRecord.content, researchRecord.type, researchRecord.timestamp);
-    updateCurrentChat(researchRecord);
-
-    try {
-        // Simulate AI response (replace with actual API call)
-        const response = await getAIResponse(message);
-        hideTypingIndicator();
-        const assistantRecord = createMessageRecord(response, 'assistant');
-        addMessage(assistantRecord.content, assistantRecord.type, assistantRecord.timestamp);
-        updateCurrentChat(assistantRecord);
-    } catch (error) {
-        hideTypingIndicator();
-        const errorRecord = createMessageRecord(
-            'Sorry, I encountered an error. Please try again.',
-            'system'
-        );
-        addMessage(errorRecord.content, errorRecord.type, errorRecord.timestamp);
-        updateCurrentChat(errorRecord);
-        console.error('Error getting AI response:', error);
-    }
-
-    // Update chat in history
+    await runAssistantTurn(userRecord);
     saveChats();
 }
 
@@ -224,10 +204,13 @@ function updateSendButtonState() {
 }
 
 // Add message to chat
-function addMessage(content, type, timestamp) {
-    const normalizedType = normalizeMessageType(type);
+function addMessage(messageRecord) {
+    const normalizedType = normalizeMessageType(messageRecord.type);
+    const timestamp = messageRecord.timestamp ? new Date(messageRecord.timestamp) : new Date();
+
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${normalizedType}`;
+    messageDiv.dataset.messageId = messageRecord.id;
 
     const messageContent = document.createElement('div');
     messageContent.className = 'message-content';
@@ -242,19 +225,190 @@ function addMessage(content, type, timestamp) {
 
     const messageBody = document.createElement('div');
     messageBody.className = 'message-text';
-    messageBody.innerHTML = formatMessageContent(content);
+    messageBody.innerHTML = formatMessageContent(messageRecord.content);
     messageContent.appendChild(messageBody);
+
+    const actions = createMessageActions(messageRecord);
+    if (actions) {
+        messageContent.appendChild(actions);
+    }
 
     const messageTime = document.createElement('div');
     messageTime.className = 'message-time';
-    const timeValue = timestamp ? new Date(timestamp) : new Date();
-    messageTime.textContent = timeValue.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    messageTime.textContent = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     messageDiv.appendChild(messageContent);
     messageDiv.appendChild(messageTime);
 
     messagesContainer.appendChild(messageDiv);
+    updateMessageBookmarkUI(messageRecord.id, messageRecord.isBookmarked);
+    updateMessageReactionUI(messageRecord.id, messageRecord.reaction);
     scrollToBottom();
+}
+
+function createMessageActions(messageRecord) {
+    const type = normalizeMessageType(messageRecord.type);
+    const { id: messageId } = messageRecord;
+    let hasActions = false;
+    const container = document.createElement('div');
+    container.className = 'message-actions';
+
+    if (type === 'user') {
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'message-action-btn';
+        editBtn.title = 'Edit message';
+        editBtn.textContent = 'Edit';
+        editBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            editUserMessage(messageId);
+        });
+        container.appendChild(editBtn);
+        hasActions = true;
+    } else if (type === 'assistant') {
+        const regenBtn = document.createElement('button');
+        regenBtn.type = 'button';
+        regenBtn.className = 'message-action-btn';
+        regenBtn.title = 'Regenerate response';
+        regenBtn.textContent = 'Regenerate';
+        regenBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            regenerateAssistantMessage(messageId);
+        });
+        container.appendChild(regenBtn);
+        hasActions = true;
+
+        const reactions = createReactionControls(messageId, messageRecord.reaction);
+        container.appendChild(reactions);
+    }
+
+    const bookmarkBtn = document.createElement('button');
+    bookmarkBtn.type = 'button';
+    bookmarkBtn.className = 'message-action-btn bookmark';
+    bookmarkBtn.title = 'Bookmark message';
+    bookmarkBtn.innerHTML = '☆';
+    bookmarkBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        toggleBookmarkMessage(messageId);
+    });
+    container.appendChild(bookmarkBtn);
+    hasActions = true;
+
+    return hasActions ? container : null;
+}
+
+function createReactionControls(messageId, currentReaction) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'message-reactions';
+
+    const reactions = [
+        { icon: '👍', value: 'up', label: 'Helpful' },
+        { icon: '👎', value: 'down', label: 'Not helpful' },
+    ];
+
+    reactions.forEach((reaction) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'message-action-btn reaction';
+        btn.dataset.reaction = reaction.value;
+        btn.title = reaction.label;
+        btn.textContent = reaction.icon;
+        if (reaction.value === currentReaction) {
+            btn.classList.add('active');
+        }
+        btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            toggleReaction(messageId, reaction.value);
+        });
+        wrapper.appendChild(btn);
+    });
+
+    return wrapper;
+}
+
+function toggleReaction(messageId, reactionValue) {
+    const chat = getCurrentChat();
+    if (!chat) return;
+
+    const message = chat.messages.find((msg) => msg.id === messageId);
+    if (!message || message.type !== 'assistant') return;
+
+    message.reaction = message.reaction === reactionValue ? null : reactionValue;
+    saveChats();
+    updateMessageReactionUI(messageId, message.reaction);
+}
+
+function toggleBookmarkMessage(messageId) {
+    const chat = getCurrentChat();
+    if (!chat) return;
+
+    const message = chat.messages.find((msg) => msg.id === messageId);
+    if (!message) return;
+
+    message.isBookmarked = !message.isBookmarked;
+    saveChats();
+    updateMessageBookmarkUI(messageId, message.isBookmarked);
+    refreshBookmarksPanel();
+}
+
+function updateMessageBookmarkUI(messageId, isBookmarked) {
+    const el = messagesContainer.querySelector(`[data-message-id="${messageId}"]`);
+    if (!el) return;
+
+    el.classList.toggle('bookmarked', isBookmarked);
+    const action = el.querySelector('.message-action-btn.bookmark');
+    if (action) {
+        action.innerHTML = isBookmarked ? '★' : '☆';
+        action.title = isBookmarked ? 'Remove bookmark' : 'Bookmark message';
+    }
+}
+
+function updateMessageReactionUI(messageId, reaction) {
+    const el = messagesContainer.querySelector(`[data-message-id="${messageId}"]`);
+    if (!el) return;
+    const buttons = el.querySelectorAll('.message-action-btn.reaction');
+    buttons.forEach((btn) => {
+        const value = btn.dataset.reaction;
+        btn.classList.toggle('active', reaction === value && !!reaction);
+    });
+}
+
+function refreshBookmarksPanel() {
+    if (!bookmarkList || !bookmarkCount) return;
+    const chat = getCurrentChat();
+    if (!chat) {
+        bookmarkList.innerHTML = '<p class="bookmark-empty">No chat selected.</p>';
+        bookmarkCount.textContent = '0';
+        return;
+    }
+
+    const bookmarked = chat.messages.filter((msg) => msg.isBookmarked);
+    bookmarkCount.textContent = String(bookmarked.length);
+
+    if (!bookmarked.length) {
+        bookmarkList.innerHTML = '<p class="bookmark-empty">No bookmarks yet.</p>';
+        return;
+    }
+
+    bookmarkList.innerHTML = '';
+    bookmarked.forEach((msg) => {
+        const item = document.createElement('div');
+        item.className = 'bookmark-item';
+        item.onclick = () => scrollToMessage(msg.id);
+        item.innerHTML = `
+            <span class="bookmark-item-title">${truncateText(msg.content, 45)}</span>
+            <span class="bookmark-item-meta">${new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        `;
+        bookmarkList.appendChild(item);
+    });
+}
+
+function scrollToMessage(messageId) {
+    const el = messagesContainer.querySelector(`[data-message-id="${messageId}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('bookmark-focus');
+    setTimeout(() => el.classList.remove('bookmark-focus'), 1500);
 }
 
 // Show typing indicator
@@ -339,6 +493,18 @@ function updateCurrentChat(messageRecord) {
     const chat = chats.find(c => c.id === currentChatId);
     if (!chat) return;
 
+    if (!messageRecord.id) {
+        messageRecord.id = generateMessageId();
+    }
+    messageRecord.type = normalizeMessageType(messageRecord.type);
+    messageRecord.timestamp = messageRecord.timestamp || new Date().toISOString();
+    if (typeof messageRecord.isBookmarked !== 'boolean') {
+        messageRecord.isBookmarked = Boolean(messageRecord.isBookmarked);
+    }
+    if (messageRecord.reaction !== 'up' && messageRecord.reaction !== 'down') {
+        messageRecord.reaction = null;
+    }
+
     chat.messages.push(messageRecord);
     chat.lastMessageAt = messageRecord.timestamp || new Date().toISOString();
 
@@ -390,6 +556,34 @@ function updateChatList() {
     });
 }
 
+async function runAssistantTurn(userRecord) {
+    showTypingIndicator();
+
+    const researchRecord = createMessageRecord(
+        `Researching “${truncateText(userRecord.content, 120)}”…`,
+        'research'
+    );
+    addMessage(researchRecord);
+    updateCurrentChat(researchRecord);
+
+    try {
+        const response = await getAIResponse(userRecord.content);
+        hideTypingIndicator();
+        const assistantRecord = createMessageRecord(response, 'assistant');
+        addMessage(assistantRecord);
+        updateCurrentChat(assistantRecord);
+    } catch (error) {
+        hideTypingIndicator();
+        const errorRecord = createMessageRecord(
+            'Sorry, I encountered an error. Please try again.',
+            'system'
+        );
+        addMessage(errorRecord);
+        updateCurrentChat(errorRecord);
+        console.error('Error getting AI response:', error);
+    }
+}
+
 // Load a specific chat
 function loadChat(chatId) {
     const chat = chats.find(c => c.id === chatId);
@@ -411,11 +605,12 @@ function loadChat(chatId) {
         `;
     } else {
         chat.messages.forEach(msg => {
-            addMessage(msg.content, msg.type, msg.timestamp);
+            addMessage(msg);
         });
     }
 
     updateChatList();
+    refreshBookmarksPanel();
 }
 
 // Format time for chat list
@@ -477,9 +672,12 @@ function loadChats() {
 
     chats.forEach(chat => {
         chat.messages = (chat.messages || []).map(msg => ({
+            id: msg.id || generateMessageId(),
             content: msg.content || '',
             type: normalizeMessageType(msg.type),
             timestamp: msg.timestamp || new Date().toISOString(),
+            isBookmarked: Boolean(msg.isBookmarked),
+            reaction: msg.reaction || null,
         }));
         if (!chat.lastMessageAt && chat.messages.length) {
             chat.lastMessageAt = chat.messages[chat.messages.length - 1].timestamp;
@@ -536,6 +734,75 @@ function deleteChat(chatId) {
     }
 }
 
+function getCurrentChat() {
+    return chats.find(c => c.id === currentChatId) || null;
+}
+
+function editUserMessage(messageId) {
+    if (isTyping) return;
+    const chat = getCurrentChat();
+    if (!chat) return;
+
+    const index = chat.messages.findIndex((msg) => msg.id === messageId);
+    if (index === -1) return;
+    const target = chat.messages[index];
+    if (target.type !== 'user') return;
+
+    if (index !== chat.messages.length - 1) {
+        alert('You can only edit the latest user message.');
+        return;
+    }
+
+    const originalContent = target.content;
+    chat.messages.splice(index);
+    chat.lastMessageAt = chat.messages.length
+        ? chat.messages[chat.messages.length - 1].timestamp
+        : new Date().toISOString();
+    saveChats();
+    loadChat(chat.id);
+
+    messageInput.value = originalContent;
+    adjustTextareaHeight();
+    messageInput.focus();
+}
+
+async function regenerateAssistantMessage(messageId) {
+    if (isTyping) return;
+    const chat = getCurrentChat();
+    if (!chat) return;
+
+    const index = chat.messages.findIndex((msg) => msg.id === messageId);
+    if (index === -1) return;
+    const target = chat.messages[index];
+    if (target.type !== 'assistant') return;
+
+    if (index !== chat.messages.length - 1) {
+        alert('You can only regenerate the most recent assistant reply.');
+        return;
+    }
+
+    let priorUserIndex = -1;
+    for (let i = index - 1; i >= 0; i -= 1) {
+        if (chat.messages[i].type === 'user') {
+            priorUserIndex = i;
+            break;
+        }
+    }
+
+    if (priorUserIndex === -1) return;
+    const userRecord = { ...chat.messages[priorUserIndex] };
+
+    chat.messages.splice(priorUserIndex + 1);
+    chat.lastMessageAt = chat.messages.length
+        ? chat.messages[chat.messages.length - 1].timestamp
+        : new Date().toISOString();
+    saveChats();
+    loadChat(chat.id);
+
+    await runAssistantTurn(userRecord);
+    saveChats();
+}
+
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', init);
 
@@ -547,6 +814,12 @@ if (typeof module !== 'undefined' && module.exports) {
         createNewChat,
         updateCurrentChat,
         renameChat,
-        deleteChat
+        deleteChat,
+        editUserMessage,
+        regenerateAssistantMessage,
+        runAssistantTurn,
+        toggleBookmarkMessage,
+        toggleReaction,
+        refreshBookmarksPanel
     };
 }

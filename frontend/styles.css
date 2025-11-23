@@ -109,6 +109,71 @@ body {
     padding: 0.5rem;
 }
 
+.bookmark-panel {
+    border-top: 1px solid var(--border-color);
+    padding: 1rem;
+    background-color: var(--bg-tertiary);
+}
+
+.bookmark-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.bookmark-panel-header h3 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.bookmark-count {
+    font-size: 0.75rem;
+    background: var(--user-message-bg);
+    color: white;
+    border-radius: 999px;
+    padding: 0.1rem 0.5rem;
+}
+
+.bookmark-list {
+    max-height: 180px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.bookmark-item {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.45rem 0.5rem;
+    border-radius: 8px;
+    transition: background-color 0.2s ease;
+}
+
+.bookmark-item:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.bookmark-item-title {
+    font-weight: 600;
+    display: block;
+    color: var(--text-primary);
+}
+
+.bookmark-item-meta {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.bookmark-empty {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
 .chat-item {
     padding: 0.75rem 1rem;
     margin-bottom: 0.25rem;
@@ -364,6 +429,82 @@ body {
 
 .message-text {
     line-height: 1.5;
+}
+
+.message-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.4rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    flex-wrap: wrap;
+}
+
+.message:hover .message-actions {
+    opacity: 1;
+}
+
+.message-action-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    padding: 0.15rem 0.75rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    color: inherit;
+}
+
+.message.user .message-action-btn {
+    border-color: rgba(255, 255, 255, 0.5);
+    color: white;
+}
+
+.message.assistant .message-action-btn {
+    border-color: rgba(76, 110, 245, 0.4);
+    color: #4c6ef5;
+}
+
+.message-action-btn:hover {
+    opacity: 0.8;
+}
+
+.message-action-btn.reaction.active {
+    background-color: rgba(76, 110, 245, 0.15);
+    border-color: rgba(76, 110, 245, 0.5);
+}
+
+.message-reactions {
+    display: flex;
+    gap: 0.3rem;
+}
+
+.message-action-btn.reaction {
+    border-color: rgba(76, 110, 245, 0.3);
+    color: #4c6ef5;
+}
+
+.message.bookmarked .message-content {
+    box-shadow: 0 0 0 2px rgba(249, 196, 65, 0.35);
+}
+
+.message.bookmarked .message-role::after {
+    content: '★';
+    margin-left: 0.4rem;
+    color: #f4c430;
+    font-size: 0.8rem;
+}
+
+.message.bookmark-focus .message-content {
+    animation: pulseHighlight 1.5s ease-out;
+}
+
+@keyframes pulseHighlight {
+    0% {
+        box-shadow: 0 0 0 0 rgba(244, 196, 48, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 0 8px rgba(244, 196, 48, 0);
+    }
 }
 
 .message-content a {
