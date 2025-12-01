@@ -9,8 +9,11 @@ def _fresh_conversation_manager(tmp_path: Path, summary_threshold: int = 3):
     os.environ["DATABASE_URL"] = f"sqlite:///{tmp_path / 'memory.db'}"
 
     import backend.database.connection as db_connection
+    import importlib
+    import backend.database.models as models_module
 
     importlib.reload(db_connection)
+    importlib.reload(models_module)
 
     import backend.memory.conversation_manager as manager_module
 
@@ -49,7 +52,7 @@ def test_conversation_summary_triggers_after_threshold(tmp_path):
 
     refreshed = manager.get_conversation(conversation.id)
     assert refreshed is not None
-    assert refreshed.metadata.get("summary") == "Dummy summary line 1"
+    assert refreshed.metadata_json.get("summary") == "Dummy summary line 1"
 
 
 def test_conversation_summary_falls_back_when_llm_fails(tmp_path):
@@ -62,4 +65,34 @@ def test_conversation_summary_falls_back_when_llm_fails(tmp_path):
 
     refreshed = manager.get_conversation(conversation.id)
     assert refreshed is not None
-    assert "First line is important" in refreshed.metadata.get("summary", "")
+    assert "First line is important" in refreshed.metadata_json.get("summary", "")
+
+
+def test_get_metrics_accumulates_counts(tmp_path):
+    manager = _fresh_conversation_manager(tmp_path)
+
+    conversation = manager.create_conversation(title="Metric session")
+    manager.add_message(conversation.id, "user", "Metric check message", message_type="user")
+    manager.add_message(conversation.id, "assistant", "Assistant insight", message_type="assistant")
+    manager.add_message(conversation.id, "system", "System notice", message_type="system")
+    manager.add_message(conversation.id, "assistant", "Follow-up insight", message_type="assistant")
+    manager.add_message(conversation.id, "user", "Another user follow-up", message_type="user")
+
+    manager.record_search_session(
+        conversation_id=conversation.id,
+        search_query="deep research monitoring",
+        result_count=2,
+        summary="Mock session",
+    )
+
+    metrics = manager.get_metrics()
+
+    assert metrics["total_conversations"] == 1
+    assert metrics["total_messages"] == 5
+    assert metrics["total_search_sessions"] == 1
+    assert metrics["message_type_breakdown"]["user"] == 2
+    assert metrics["message_type_breakdown"]["assistant"] == 2
+    assert metrics["message_type_breakdown"]["system"] == 1
+    assert metrics["average_messages_per_conversation"] == 5.0
+    assert metrics["average_search_sessions_per_conversation"] == 1.0
+    assert "Metric session" in metrics["recent_conversation_titles"][0]

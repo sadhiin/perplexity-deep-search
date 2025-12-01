@@ -13,7 +13,7 @@ from pathlib import Path
 # Add the current directory to the Python path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from config import (
+from backend.config import (
     print_configuration_status,
     get_config,
     TaskType,

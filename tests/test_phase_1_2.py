@@ -151,7 +151,7 @@ def test_utils_integration():
 
     try:
         from utils import call_search_query_llm, call_thinking_llm, get_search_query_llm
-        from config import TaskType
+        from backend.config import TaskType
 
         print(f"\n1. Testing call_search_query_llm function")
         test_query = "climate change impact on agriculture"

@@ -8,7 +8,7 @@ to ensure it can work with various LLM providers.
 import os
 import asyncio
 from langchain_core.messages import HumanMessage, SystemMessage
-from config import ConfigurationManager, TaskType
+from backend.config import ConfigurationManager, TaskType
 from models.unified_llm_provider import UnifiedLLMProvider, LLMResponse
 
 
