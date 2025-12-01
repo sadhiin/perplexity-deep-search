@@ -98,6 +98,15 @@ def get_search_sessions(conversation_id: int, limit: int = 20, offset: int = 0):
     }
 
 
+@chat_router.get("/metrics")
+def get_metrics():
+    try:
+        metrics = conversation_manager.get_metrics()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to collect metrics: {exc}")
+    return {"metrics": metrics}
+
+
 @chat_router.get("/conversations/{conversation_id}/export")
 def export_conversation(
     conversation_id: int,

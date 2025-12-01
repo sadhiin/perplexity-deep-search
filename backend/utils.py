@@ -7,7 +7,7 @@ from duckduckgo_search import DDGS
 from dotenv import load_dotenv
 
 # Import our new model management system
-from config import TaskType, get_config
+from backend.config import TaskType, get_config
 from models.model_manager import ModelManager
 from models.search_query_llm import SearchQueryLLM
 from models.thinking_llm import ThinkingLLM

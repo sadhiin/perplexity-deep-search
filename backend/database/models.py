@@ -25,7 +25,7 @@ class Conversation(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(256), nullable=True)
-    metadata = Column(JSON, default=dict)
+    metadata_json = Column(JSON, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -34,6 +34,7 @@ class Conversation(Base):
 
     def __repr__(self) -> str:
         return f"Conversation(id={self.id}, title={self.title})"
+
 
 
 class Message(Base):

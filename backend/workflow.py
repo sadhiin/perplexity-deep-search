@@ -20,7 +20,7 @@ from utils import (
     call_thinking_llm,
     get_thinking_llm,
 )
-from config import TaskType
+from backend.config import TaskType
 from prompt import (
     generate_search_queries_prompt,
     refine_search_queries_prompt,
@@ -383,6 +383,15 @@ def final_report_generator(state: DeepResearchState):
         for r in search_results
     )
 
+    conversation_context = state.get("conversation_context", "").strip()
+    contextual_search_results_parts = []
+    if conversation_context:
+        contextual_search_results_parts.append(
+            f"Conversation context:\n{conversation_context}"
+        )
+    contextual_search_results_parts.append(f"Search Results:\n{search_results_str}")
+    contextual_search_results = "\n\n".join(contextual_search_results_parts)
+
     search_session_history = []
     conversation_id = state.get("conversation_id")
     if conversation_id:
@@ -413,7 +422,11 @@ def final_report_generator(state: DeepResearchState):
             analysis_result = thinking_llm.analyze_research_findings(
                 research_data=search_results_str,
                 user_query=user_query,
-                context="Search Results:\n" + search_results_str,
+                context=(
+                    f"Conversation context:\n{conversation_context}"
+                    if conversation_context
+                    else ""
+                ),
             )
             analysis_summary = analysis_result.get("analysis", "").strip()
         except Exception as e:
@@ -424,7 +437,7 @@ def final_report_generator(state: DeepResearchState):
         try:
             final_report = thinking_llm.generate_comprehensive_report(
                 user_query=user_query,
-                research_findings=search_results_str,
+                research_findings=contextual_search_results,
                 analysis_results=analysis_result or None,
             )
         except Exception as e:
@@ -434,10 +447,22 @@ def final_report_generator(state: DeepResearchState):
         try:
             final_report = call_thinking_llm(
                 prompt=final_report_prompt.format(
-                    user_query=user_query, search_results=search_results_str
+                    user_query=user_query,
+                    search_results=search_results_str,
+                    conversation_context=conversation_context or "Not provided",
                 ),
                 task="report",
-                context=f"User Query: {user_query}",
+                context="\n".join(
+                    filter(
+                        None,
+                        [
+                            f"User Query: {user_query}",
+                            f"Conversation context:\n{conversation_context}"
+                            if conversation_context
+                            else "",
+                        ],
+                    )
+                )
             )
         except Exception as e:
             logger.error(
@@ -456,7 +481,7 @@ def final_report_generator(state: DeepResearchState):
         try:
             reasoning_result = thinking_llm.reason_step_by_step(
                 problem=user_query,
-                context=search_results_str,
+                context=contextual_search_results,
             )
             reasoning_trace = reasoning_result.get("reasoning_steps", []) or []
         except Exception as e:
