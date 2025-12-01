@@ -10,11 +10,17 @@ if "final_report_generated" not in st.session_state:
     st.session_state["search_results"] = []
     st.session_state["claim_confidences"] = []
     st.session_state["reasoning_trace"] = []
+    st.session_state["analysis_summary"] = ""
+    st.session_state["analysis_results"] = {}
 
 if "claim_confidences" not in st.session_state:
     st.session_state["claim_confidences"] = []
 if "reasoning_trace" not in st.session_state:
     st.session_state["reasoning_trace"] = []
+if "analysis_summary" not in st.session_state:
+    st.session_state["analysis_summary"] = ""
+if "analysis_results" not in st.session_state:
+    st.session_state["analysis_results"] = {}
 
 
 # Function to simulate streaming of data
@@ -50,6 +56,12 @@ def fetch_results_streaming(query):
             )
             st.session_state["reasoning_trace"] = chunk["final_report_generator"].get(
                 "reasoning_trace", []
+            )
+            st.session_state["analysis_summary"] = chunk["final_report_generator"].get(
+                "analysis_summary", ""
+            )
+            st.session_state["analysis_results"] = chunk["final_report_generator"].get(
+                "analysis_results", {}
             )
         yield
 
@@ -149,6 +161,24 @@ if query:
                 with st.expander("Thinking process", expanded=False):
                     for idx, step in enumerate(reasoning_trace, 1):
                         st.markdown(f"**Step {idx}.** {step}")
+                st.divider()
+            analysis_summary = st.session_state.get("analysis_summary", "")
+            analysis_results = st.session_state.get("analysis_results", {})
+            if analysis_summary:
+                st.subheader("Analyst Overview")
+                st.markdown(analysis_summary)
+                st.divider()
+            key_insights = analysis_results.get("key_insights") or []
+            if key_insights:
+                st.subheader("Key Insights")
+                for insight in key_insights:
+                    st.markdown(f"- {insight}")
+                st.divider()
+            limitations = analysis_results.get("limitations") or []
+            if limitations:
+                st.subheader("Limitations Noted")
+                for limitation in limitations:
+                    st.markdown(f"- {limitation}")
                 st.divider()
             st.markdown(st.session_state["final_markdown_report"])
 
