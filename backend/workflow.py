@@ -47,6 +47,7 @@ class DeepResearchState(TypedDict):
     analysis_results: Dict[str, Any]
     conversation_id: Optional[int]
     conversation_context: str
+    is_followup: bool
     search_session_history: list
 
 
@@ -89,6 +90,21 @@ def _store_assistant_report(conversation_id: int, report: str) -> None:
         logger.warning("Failed to store assistant report in conversation %s: %s", conversation_id, exc)
 
 
+def _store_reasoning_trace(conversation_id: int, reasoning_trace: list) -> None:
+    if not reasoning_trace:
+        return
+    try:
+        trace_content = "\n".join(f"{idx+1}. {step}" for idx, step in enumerate(reasoning_trace))
+        _conversation_manager.add_message(
+            conversation_id=conversation_id,
+            role="assistant",
+            content=trace_content,
+            message_type="reasoning_trace",
+        )
+    except Exception as exc:
+        logger.warning("Failed to store reasoning trace for conversation %s: %s", conversation_id, exc)
+
+
 def _record_search_session(
     conversation_id: int, search_query: str, results: list
 ) -> None:
@@ -103,6 +119,36 @@ def _record_search_session(
         )
     except Exception as exc:
         logger.warning("Failed to record search session for conversation %s: %s", conversation_id, exc)
+
+
+def _is_follow_up(conversation_id: int) -> bool:
+    if not conversation_id:
+        return False
+    try:
+        messages = _conversation_manager.get_messages(conversation_id, limit=50)
+    except Exception:
+        return False
+    return any(message.role == "user" for message in messages)
+
+
+def _format_search_session_history(sessions: list) -> str:
+    if not sessions:
+        return ""
+    formatted = []
+    for session in sessions:
+        title = session.search_query if hasattr(session, "search_query") else session.get("search_query")
+        summary = session.summary if hasattr(session, "summary") else session.get("summary")
+        result_count = session.result_count if hasattr(session, "result_count") else session.get("result_count", 0)
+        formatted.append(f"{title} ({result_count} results) - {summary or 'No summary'}")
+    return "\n".join(formatted)
+
+
+def _get_recent_search_sessions(conversation_id: int, limit: int = 5) -> list:
+    try:
+        return _conversation_manager.get_search_sessions(conversation_id, limit=limit)
+    except Exception as e:
+        logger.debug("Unable to fetch search sessions: %s", e)
+        return []
 
 
 def query_planner(state: DeepResearchState):
@@ -121,6 +167,13 @@ def query_planner(state: DeepResearchState):
     if built_context:
         conversation_context = built_context
 
+    is_followup = _is_follow_up(conversation_id)
+    recent_sessions = _get_recent_search_sessions(conversation_id, limit=5)
+    sessions_context = _format_search_session_history(recent_sessions)
+
+    recent_sessions = _get_recent_search_sessions(conversation_id, limit=5)
+    sessions_context = _format_search_session_history(recent_sessions)
+
     current_date = datetime.today().strftime("%d %B %Y")
 
     # Use the specialized SearchQueryLLM for better query generation
@@ -134,6 +187,12 @@ def query_planner(state: DeepResearchState):
         ]
         if conversation_context:
             context_segments.append(f"Conversation context:\n{conversation_context}")
+        if sessions_context:
+            context_segments.append(f"Recent search sessions:\n{sessions_context}")
+        if is_followup:
+            context_segments.append("This query builds on the existing conversation; treat it as a follow-up and avoid repeating earlier research unless explicitly requested.")
+        if sessions_context:
+            context_segments.append(f"Recent search sessions:\n{sessions_context}")
         context = " ".join(context_segments)
         search_queries = search_query_llm.generate_initial_queries(
             user_query=user_query, max_queries=MAX_QUERY_GENERATIONS, context=context
@@ -191,6 +250,7 @@ def query_planner(state: DeepResearchState):
         "query_generation_count": query_generation_count + 1,
         "conversation_id": conversation_id,
         "conversation_context": conversation_context,
+        "is_followup": is_followup,
     }
 
 
@@ -278,6 +338,7 @@ def should_refine_query(
         )
         consolidated_search_results += search_results_per_query
 
+    is_followup = state.get("is_followup", False)
     if refined_search_queries:
         return Command(
             update={
@@ -286,6 +347,7 @@ def should_refine_query(
                 "query_generation_count": query_generation_count + 1,
                 "conversation_id": conversation_id,
                 "conversation_context": conversation_context,
+                "is_followup": is_followup,
             },
             goto="should_refine_query",
         )
@@ -413,6 +475,7 @@ def final_report_generator(state: DeepResearchState):
 
     if state.get("conversation_id"):
         _store_assistant_report(state["conversation_id"], final_report)
+        _store_reasoning_trace(state["conversation_id"], reasoning_trace)
 
     summaries = [
         _summarize_search_result(result)
@@ -427,6 +490,7 @@ def final_report_generator(state: DeepResearchState):
         "analysis_summary": analysis_summary,
         "analysis_results": analysis_result or {},
         "search_session_history": search_session_history,
+        "is_followup": state.get("is_followup", False),
     }
 
 
