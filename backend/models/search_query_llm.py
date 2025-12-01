@@ -10,7 +10,7 @@ from typing import List, Optional, Dict, Any
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.language_models import BaseChatModel
 
-from config import TaskType
+from backend.config import TaskType
 from .model_manager import ModelManager
 
 logger = logging.getLogger(__name__)

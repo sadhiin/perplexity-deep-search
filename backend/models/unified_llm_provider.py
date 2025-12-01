@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.language_models import BaseChatModel
 
-from config import ModelConfig, LLMProvider
+from backend.config import ModelConfig, LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ class BaseLLMProvider(ABC):
             "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
         }
 
-        # Add custom parameters from config
+        # Add custom parameters from backend.config
         params.update(self.config.custom_params)
 
         # Override with any provided kwargs
