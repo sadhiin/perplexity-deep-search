@@ -1,6 +1,7 @@
 from typing import Dict, Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from backend.memory import ConversationManager
@@ -95,3 +96,58 @@ def get_search_sessions(conversation_id: int, limit: int = 20, offset: int = 0):
             for session_record in sessions
         ]
     }
+
+
+@chat_router.get("/conversations/{conversation_id}/export")
+def export_conversation(
+    conversation_id: int,
+    format: str = Query("json", regex="^(json|markdown)$"),
+):
+    conversation = conversation_manager.get_conversation(conversation_id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    messages = conversation_manager.get_messages(conversation_id, limit=1000, offset=0)
+    sessions = conversation_manager.get_search_sessions(conversation_id, limit=100, offset=0)
+
+    conversation_payload = {
+        "conversation": conversation_manager.conversation_to_dict(conversation),
+        "messages": [
+            conversation_manager.message_to_dict(message) for message in messages
+        ],
+        "search_sessions": [
+            conversation_manager.search_session_to_dict(session) for session in sessions
+        ],
+    }
+
+    if format == "json":
+        return JSONResponse(conversation_payload)
+
+    markdown_lines = [
+        f"# Conversation: {conversation_payload['conversation'].get('title') or 'Untitled'}",
+        "",
+        "## Metadata",
+        f"- ID: {conversation_payload['conversation']['id']}",
+        f"- Created: {conversation_payload['conversation']['created_at']}",
+        f"- Updated: {conversation_payload['conversation']['updated_at']}",
+        "",
+        "## Messages",
+    ]
+    for message in conversation_payload["messages"]:
+        markdown_lines.append(
+            f"- **{message['role'].title()}** ({message['created_at']}): {message['content']}"
+        )
+    markdown_lines.extend(
+        [
+            "",
+            "## Search Sessions",
+        ]
+    )
+    for session_record in conversation_payload["search_sessions"]:
+        markdown_lines.append(
+            f"- [{session_record['created_at']}] `{session_record['search_query']}`"
+            f" ({session_record['result_count']} results) – {session_record['summary'] or 'No summary'}"
+        )
+
+    markdown = "\n".join(markdown_lines)
+    return PlainTextResponse(content=markdown, media_type="text/markdown")
