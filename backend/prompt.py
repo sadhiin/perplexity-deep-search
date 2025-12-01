@@ -159,6 +159,11 @@ User Query:
 Search Results:
 ```
 {search_results}
+```
+
+Conversation Context:
+```
+{conversation_context}
 ```"""
 
 
