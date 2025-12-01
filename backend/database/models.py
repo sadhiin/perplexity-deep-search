@@ -1,0 +1,63 @@
+from typing import Optional
+
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    Text,
+    func,
+)
+from sqlalchemy.orm import relationship
+
+from .connection import Base
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(256), nullable=True)
+    metadata = Column(JSON, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
+    search_sessions = relationship("SearchSession", back_populates="conversation", cascade="all, delete-orphan")
+
+    def __repr__(self) -> str:
+        return f"Conversation(id={self.id}, title={self.title})"
+
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+    role = Column(String(32), nullable=False)
+    content = Column(Text, nullable=False)
+    message_type = Column(String(32), nullable=False, default="research")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    conversation = relationship("Conversation", back_populates="messages")
+
+    def __repr__(self) -> str:
+        return f"Message(id={self.id}, role={self.role})"
+
+
+class SearchSession(Base):
+    __tablename__ = "search_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+    search_query = Column(String(512), nullable=False)
+    result_count = Column(Integer, default=0)
+    summary = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    conversation = relationship("Conversation", back_populates="search_sessions")
+
+    def __repr__(self) -> str:
+        return f"SearchSession(id={self.id}, query={self.search_query})"

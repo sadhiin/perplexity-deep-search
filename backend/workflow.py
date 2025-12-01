@@ -1,6 +1,6 @@
 import operator
 import logging
-from typing import Annotated
+from typing import Annotated, Any, Dict, Optional
 from typing_extensions import TypedDict, Literal
 from langgraph.graph import START, END, StateGraph
 from langgraph.types import Command
@@ -11,6 +11,8 @@ import re
 # Load environment variables
 load_dotenv()
 
+from backend.memory.context_manager import ContextManager
+from backend.memory.conversation_manager import ConversationManager
 from utils import (
     call_llm,
     get_search_results,
@@ -41,9 +43,66 @@ class DeepResearchState(TypedDict):
     query_generation_count: int
     claim_confidences: list
     reasoning_trace: Annotated[list, operator.add]
+    analysis_summary: str
+    analysis_results: Dict[str, Any]
+    conversation_id: Optional[int]
+    conversation_context: str
+    search_session_history: list
 
 
 logger = logging.getLogger(__name__)
+_context_manager = ContextManager()
+_conversation_manager = ConversationManager()
+
+
+def _ensure_conversation_id(conversation_id: Optional[int], user_query: str) -> int:
+    if conversation_id:
+        return conversation_id
+    title = user_query.strip()[:200] or "Deep research conversation"
+    conversation = _conversation_manager.create_conversation(title=title)
+    return conversation.id
+
+
+def _store_user_query(conversation_id: int, user_query: str) -> None:
+    try:
+        _conversation_manager.add_message(
+            conversation_id=conversation_id,
+            role="user",
+            content=user_query,
+            message_type="user_query",
+        )
+    except Exception as exc:
+        logger.warning("Failed to store user query in conversation %s: %s", conversation_id, exc)
+
+
+def _store_assistant_report(conversation_id: int, report: str) -> None:
+    if not report:
+        return
+    try:
+        _conversation_manager.add_message(
+            conversation_id=conversation_id,
+            role="assistant",
+            content=report,
+            message_type="report",
+        )
+    except Exception as exc:
+        logger.warning("Failed to store assistant report in conversation %s: %s", conversation_id, exc)
+
+
+def _record_search_session(
+    conversation_id: int, search_query: str, results: list
+) -> None:
+    titles = [result.get("title", "Untitled") for result in results[:3]]
+    summary = " | ".join(titles) if titles else "No results retrieved."
+    try:
+        _conversation_manager.record_search_session(
+            conversation_id=conversation_id,
+            search_query=search_query,
+            result_count=len(results),
+            summary=summary,
+        )
+    except Exception as exc:
+        logger.warning("Failed to record search session for conversation %s: %s", conversation_id, exc)
 
 
 def query_planner(state: DeepResearchState):
@@ -55,6 +114,12 @@ def query_planner(state: DeepResearchState):
     """
     user_query = state["user_query"]
     query_generation_count = state.get("query_generation_count", 0)
+    conversation_id = _ensure_conversation_id(state.get("conversation_id"), user_query)
+    conversation_context = state.get("conversation_context", "")
+
+    built_context = _context_manager.build_context(conversation_id, user_query)
+    if built_context:
+        conversation_context = built_context
 
     current_date = datetime.today().strftime("%d %B %Y")
 
@@ -63,7 +128,13 @@ def query_planner(state: DeepResearchState):
 
     try:
         # Generate queries using the specialized model with context
-        context = f"Current date: {current_date}. Generate diverse queries to research this topic thoroughly."
+        context_segments = [
+            f"Current date: {current_date}.",
+            "Generate diverse queries to research this topic thoroughly.",
+        ]
+        if conversation_context:
+            context_segments.append(f"Conversation context:\n{conversation_context}")
+        context = " ".join(context_segments)
         search_queries = search_query_llm.generate_initial_queries(
             user_query=user_query, max_queries=MAX_QUERY_GENERATIONS, context=context
         )
@@ -110,11 +181,16 @@ def query_planner(state: DeepResearchState):
             previous_search_results=consolidated_search_results,
         )
         consolidated_search_results += search_results_per_query
+        _record_search_session(conversation_id, search_query, search_results_per_query)
+
+    _store_user_query(conversation_id, user_query)
 
     return {
         "search_queries": search_queries,
         "search_results": consolidated_search_results,
         "query_generation_count": query_generation_count + 1,
+        "conversation_id": conversation_id,
+        "conversation_context": conversation_context,
     }
 
 
@@ -131,6 +207,8 @@ def should_refine_query(
     search_queries = state["search_queries"]
     search_results = state["search_results"]
     query_generation_count = state.get("query_generation_count", 0)
+    conversation_id = state.get("conversation_id")
+    conversation_context = state.get("conversation_context", "")
 
     current_date = datetime.today().strftime("%d %B %Y")
 
@@ -206,11 +284,26 @@ def should_refine_query(
                 "search_queries": refined_search_queries,
                 "search_results": consolidated_search_results,
                 "query_generation_count": query_generation_count + 1,
+                "conversation_id": conversation_id,
+                "conversation_context": conversation_context,
             },
             goto="should_refine_query",
         )
     else:
         return Command(update={}, goto="final_report_generator")
+
+
+def _summarize_search_result(result: Dict[str, Any]) -> str:
+    """Create a short summary string for a search result."""
+    title = result.get("title", "Untitled Source")
+    href = result.get("href", "")
+    raw_content = (result.get("text_content") or result.get("body") or "").strip()
+    cleaned_content = re.sub(r"\s+", " ", raw_content)
+    if len(cleaned_content) > 220:
+        cleaned_content = cleaned_content[:220].rsplit(" ", 1)[0] + "..."
+    snippet = cleaned_content or "Summary not available."
+    reference = f"[{title}]({href})" if href else title
+    return f"{reference}: {snippet}"
 
 
 def final_report_generator(state: DeepResearchState):
@@ -224,43 +317,26 @@ def final_report_generator(state: DeepResearchState):
     search_results = state["search_results"]
 
     search_results_str = "\n===========\n".join(
-        f"Title: {r['title']}\nLink:{r['href']}\nContent: {r['text_content']}"
+        f"Title: {r.get('title', 'Untitled')}\nLink:{r.get('href', '')}\nContent: {r.get('text_content', '')}"
         for r in search_results
     )
 
-    try:
-        # Use the specialized ThinkingLLM for report generation
-        final_report_response = call_thinking_llm(
-            prompt=final_report_prompt.format(
-                user_query=user_query, search_results=search_results_str
-            ),
-            task="report",
-            context=f"User Query: {user_query}",
-        )
-    except Exception as e:
-        # Fallback to original method if ThinkingLLM fails
-        logger.warning(
-            "Falling back to generic LLM for report generation due to error: %s", e
-        )
-        final_report_response = call_llm(
-            final_report_prompt.format(
-                user_query=user_query, search_results=search_results_str
-            ),
-            task_type=TaskType.THINKING_REASONING,
-        )
+    search_session_history = []
+    conversation_id = state.get("conversation_id")
+    if conversation_id:
+        sessions = _conversation_manager.get_search_sessions(conversation_id, limit=5)
+        search_session_history = [
+            _conversation_manager.search_session_to_dict(session) for session in sessions
+        ]
 
-    # Extract summaries
-    summaries = re.findall(
-        r"<summary>\n(.*?)\n</summary>", final_report_response, re.DOTALL
-    )
-
-    # Extract final report
-    final_report_match = re.search(
-        r"<final_markdown_report>\n(.*?)\n</final_markdown_report>",
-        final_report_response,
-        re.DOTALL,
-    )
-    final_report = final_report_match.group(1) if final_report_match else ""
+    session_context = ""
+    if search_session_history:
+        session_context = "\n".join(
+            f"{entry['created_at']}: {entry['search_query']} ({entry['result_count']} results) - {entry['summary'] or 'No summary'}"
+            for entry in search_session_history
+        )
+        if session_context:
+            search_results_str = f"Previous search sessions:\n{session_context}\n\n{search_results_str}"
 
     thinking_llm = None
     try:
@@ -268,7 +344,52 @@ def final_report_generator(state: DeepResearchState):
     except Exception as e:
         logger.error("Failed to initialize ThinkingLLM: %s", e)
 
-    reasoning_trace = []
+    analysis_result: Dict[str, Any] = {}
+    analysis_summary = ""
+    if thinking_llm:
+        try:
+            analysis_result = thinking_llm.analyze_research_findings(
+                research_data=search_results_str,
+                user_query=user_query,
+                context="Search Results:\n" + search_results_str,
+            )
+            analysis_summary = analysis_result.get("analysis", "").strip()
+        except Exception as e:
+            logger.warning("Failed to analyze research findings: %s", e)
+
+    final_report = ""
+    if thinking_llm:
+        try:
+            final_report = thinking_llm.generate_comprehensive_report(
+                user_query=user_query,
+                research_findings=search_results_str,
+                analysis_results=analysis_result or None,
+            )
+        except Exception as e:
+            logger.warning("ThinkingLLM report generation failed: %s", e)
+
+    if not final_report:
+        try:
+            final_report = call_thinking_llm(
+                prompt=final_report_prompt.format(
+                    user_query=user_query, search_results=search_results_str
+                ),
+                task="report",
+                context=f"User Query: {user_query}",
+            )
+        except Exception as e:
+            logger.error(
+                "Fallback thinking report generation failed: %s", e
+            )
+            final_report = (
+                "Report generation failed due to repeated errors. "
+                "Please try again later."
+            )
+
+    if not analysis_summary and final_report:
+        analysis_summary = final_report.split("\n")[0].strip()
+
+    reasoning_trace: list = []
     if thinking_llm:
         try:
             reasoning_result = thinking_llm.reason_step_by_step(
@@ -277,7 +398,7 @@ def final_report_generator(state: DeepResearchState):
             )
             reasoning_trace = reasoning_result.get("reasoning_steps", []) or []
         except Exception as e:
-            logger.error("Failed to generate reasoning trace: %s", e)
+            logger.warning("Failed to generate reasoning trace: %s", e)
 
     confidence_scores = []
     if thinking_llm:
@@ -288,13 +409,24 @@ def final_report_generator(state: DeepResearchState):
                 user_query=user_query,
             )
         except Exception as e:
-            logger.error("Failed to generate confidence scores: %s", e)
+            logger.warning("Failed to generate confidence scores: %s", e)
+
+    if state.get("conversation_id"):
+        _store_assistant_report(state["conversation_id"], final_report)
+
+    summaries = [
+        _summarize_search_result(result)
+        for result in search_results[:5]
+    ]
 
     return {
         "individual_page_summaries": summaries,
         "report_markdown": final_report,
         "claim_confidences": confidence_scores,
         "reasoning_trace": reasoning_trace,
+        "analysis_summary": analysis_summary,
+        "analysis_results": analysis_result or {},
+        "search_session_history": search_session_history,
     }
 
 
