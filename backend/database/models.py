@@ -4,6 +4,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     JSON,
     String,
@@ -17,6 +18,10 @@ from .connection import Base
 
 class Conversation(Base):
     __tablename__ = "conversations"
+    __table_args__ = (
+        Index("ix_conversations_title", "title"),
+        Index("ix_conversations_updated_at", "updated_at"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(256), nullable=True)
@@ -33,6 +38,10 @@ class Conversation(Base):
 
 class Message(Base):
     __tablename__ = "messages"
+    __table_args__ = (
+        Index("ix_messages_conversation_id", "conversation_id"),
+        Index("ix_messages_created_at", "created_at"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
@@ -49,6 +58,10 @@ class Message(Base):
 
 class SearchSession(Base):
     __tablename__ = "search_sessions"
+    __table_args__ = (
+        Index("ix_search_sessions_conversation_id", "conversation_id"),
+        Index("ix_search_sessions_created_at", "created_at"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
