@@ -10,13 +10,20 @@ from backend.database import (
     get_db_session,
     init_db,
 )
+from backend.models.thinking_llm import ThinkingLLM
 
 
 class ConversationManager:
     """Handles persistence of conversations, messages, and search sessions."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        summarizer: Optional[ThinkingLLM] = None,
+        summary_threshold: int = 6,
+    ) -> None:
         init_db()
+        self.summarizer = summarizer or ThinkingLLM()
+        self.summary_threshold = summary_threshold
 
     def create_conversation(
         self, title: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
@@ -61,6 +68,7 @@ class ConversationManager:
             session.add(message)
             session.flush()
             session.refresh(message)
+            self._maybe_update_summary(session, conversation)
             return message
 
     def get_messages(
@@ -98,6 +106,23 @@ class ConversationManager:
             session.refresh(session_record)
             return session_record
 
+    def summarize_conversation(
+        self, conversation_id: int, limit: int = 10
+    ) -> Optional[str]:
+        with get_db_session() as session:
+            conversation = session.get(Conversation, conversation_id)
+            if not conversation:
+                return None
+            messages = self._fetch_recent_messages(session, conversation_id, limit=limit)
+            if not messages:
+                return None
+            summary = self._generate_summary(conversation, messages)
+            if summary:
+                conversation.metadata = conversation.metadata or {}
+                conversation.metadata["summary"] = summary
+                session.add(conversation)
+            return summary
+
     def get_search_sessions(
         self, conversation_id: int, limit: int = 20, offset: int = 0
     ) -> List[SearchSession]:
@@ -110,6 +135,56 @@ class ConversationManager:
                 .offset(offset)
             )
             return session.scalars(statement).all()
+
+    def _maybe_update_summary(
+        self, session, conversation: Conversation
+    ) -> None:
+        if not self.summary_threshold:
+            return
+        messages = self._fetch_recent_messages(
+            session, conversation.id, limit=self.summary_threshold
+        )
+        if len(messages) < self.summary_threshold:
+            return
+        summary = self._generate_summary(conversation, messages)
+        if summary:
+            conversation.metadata = conversation.metadata or {}
+            conversation.metadata["summary"] = summary
+            session.add(conversation)
+
+    def _fetch_recent_messages(
+        self, session, conversation_id: int, limit: int = 20
+    ) -> List[Message]:
+        statement = (
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .order_by(Message.created_at.desc())
+            .limit(limit)
+        )
+        return list(reversed(session.scalars(statement).all()))
+
+    def _generate_summary(
+        self, conversation: Conversation, messages: List[Message]
+    ) -> Optional[str]:
+        if not messages:
+            return None
+        research_data = "\n".join(
+            f"{message.role}: {message.content.strip()}" for message in messages
+        )
+        summary = None
+        try:
+            analysis = self.summarizer.analyze_research_findings(
+                research_data=research_data,
+                user_query=conversation.title or "Conversation summary",
+            )
+            candidate = (analysis.get("analysis") or "").strip()
+            if candidate:
+                summary = candidate.split("\n")[0]
+        except Exception:
+            pass
+        if not summary:
+            summary = self._fallback_summary(messages)
+        return summary
 
     @staticmethod
     def conversation_to_dict(conversation: Conversation) -> Dict[str, Any]:
