@@ -41,6 +41,9 @@ cp .env.example .env
 
 # Run the application
 uv run uvicorn app.main:app --reload
+
+# Initialize the local SQLite database for development
+uv run python scripts/init_db.py
 ```
 
 ## Project Structure
