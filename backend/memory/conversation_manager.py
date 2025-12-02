@@ -1,15 +1,10 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 
-from backend.database import (
-    Conversation,
-    Message,
-    SearchSession,
-    get_db_session,
-    init_db,
-)
+from backend.database.connection import get_db_session, init_db
+from backend.database.models import Conversation, Message, SearchSession
 from backend.models.thinking_llm import ThinkingLLM
 
 
@@ -30,7 +25,7 @@ class ConversationManager:
     ) -> Conversation:
         metadata = metadata or {}
         with get_db_session() as session:
-            conversation = Conversation(title=title, metadata=metadata)
+            conversation = Conversation(title=title, metadata_json=metadata)
             session.add(conversation)
             session.flush()
             session.refresh(conversation)
@@ -40,7 +35,12 @@ class ConversationManager:
         self, limit: int = 20, offset: int = 0
     ) -> List[Conversation]:
         with get_db_session() as session:
-            statement = select(Conversation).order_by(Conversation.updated_at.desc()).limit(limit).offset(offset)
+            statement = (
+                select(Conversation)
+                .order_by(Conversation.updated_at.desc())
+                .limit(limit)
+                .offset(offset)
+            )
             return session.scalars(statement).all()
 
     def get_conversation(self, conversation_id: int) -> Optional[Conversation]:
@@ -113,13 +113,15 @@ class ConversationManager:
             conversation = session.get(Conversation, conversation_id)
             if not conversation:
                 return None
-            messages = self._fetch_recent_messages(session, conversation_id, limit=limit)
+            messages = self._fetch_recent_messages(
+                session, conversation_id, limit=limit
+            )
             if not messages:
                 return None
             summary = self._generate_summary(conversation, messages)
             if summary:
-                conversation.metadata = conversation.metadata or {}
-                conversation.metadata["summary"] = summary
+                conversation.metadata_json = conversation.metadata_json or {}
+                conversation.metadata_json["summary"] = summary
                 session.add(conversation)
             return summary
 
@@ -136,9 +138,57 @@ class ConversationManager:
             )
             return session.scalars(statement).all()
 
-    def _maybe_update_summary(
-        self, session, conversation: Conversation
-    ) -> None:
+    def get_metrics(self) -> Dict[str, Any]:
+        """Return aggregated metrics about conversations, messages, and search sessions."""
+        with get_db_session() as session:
+            total_conversations = (
+                session.scalar(select(func.count(Conversation.id))) or 0
+            )
+            total_messages = session.scalar(select(func.count(Message.id))) or 0
+            total_search_sessions = (
+                session.scalar(select(func.count(SearchSession.id))) or 0
+            )
+
+            latest_titles = session.scalars(
+                select(Conversation.title)
+                .order_by(Conversation.updated_at.desc())
+                .limit(5)
+            ).all()
+
+            message_type_counts = dict(
+                session.execute(
+                    select(Message.message_type, func.count()).group_by(
+                        Message.message_type
+                    )
+                ).all()
+            )
+
+        avg_messages = (
+            total_messages / total_conversations if total_conversations else 0.0
+        )
+        avg_search_sessions = (
+            total_search_sessions / total_conversations if total_conversations else 0.0
+        )
+
+        breakdown = {
+            (msg_type or "unknown"): count
+            for msg_type, count in message_type_counts.items()
+        }
+
+        return {
+            "total_conversations": total_conversations,
+            "total_messages": total_messages,
+            "total_search_sessions": total_search_sessions,
+            "average_messages_per_conversation": round(avg_messages, 2),
+            "average_search_sessions_per_conversation": round(avg_search_sessions, 2),
+            "message_type_breakdown": breakdown,
+            "recent_conversation_titles": [
+                title or "Untitled conversation" for title in latest_titles
+            ],
+            "last_collected_at": datetime.utcnow().isoformat() + "Z",
+        }
+
+    def _maybe_update_summary(self, session, conversation: Conversation) -> None:
         if not self.summary_threshold:
             return
         messages = self._fetch_recent_messages(
@@ -148,8 +198,8 @@ class ConversationManager:
             return
         summary = self._generate_summary(conversation, messages)
         if summary:
-            conversation.metadata = conversation.metadata or {}
-            conversation.metadata["summary"] = summary
+            conversation.metadata_json = conversation.metadata_json or {}
+            conversation.metadata_json["summary"] = summary
             session.add(conversation)
 
     def _fetch_recent_messages(
@@ -186,12 +236,20 @@ class ConversationManager:
             summary = self._fallback_summary(messages)
         return summary
 
+    def _fallback_summary(self, messages: List[Message]) -> str:
+        lines: List[str] = []
+        for message in messages[-3:]:
+            content_snippet = (message.content or "").strip().split(".")[0]
+            if content_snippet:
+                lines.append(f"{message.role}: {content_snippet.strip()}")
+        return " | ".join(lines)
+
     @staticmethod
     def conversation_to_dict(conversation: Conversation) -> Dict[str, Any]:
         return {
             "id": conversation.id,
             "title": conversation.title,
-            "metadata": conversation.metadata or {},
+            "metadata": conversation.metadata_json or {},
             "created_at": conversation.created_at.isoformat(),
             "updated_at": conversation.updated_at.isoformat(),
         }
