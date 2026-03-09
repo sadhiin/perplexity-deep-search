@@ -31,38 +31,40 @@ Current foundational version of the perplexity-like tool for LLM deep research a
 - Added comprehensive configuration validation and testing
 - Created structured model directory with proper imports
 - Updated dependencies in `pyproject.toml` with latest LangChain/LangGraph versions
+- Added provider-aware rate limiting plus cost-based model selection to reduce spend and throttle breaches
+- Expanded the configuration/diagnostic tests to cover rate limiting + cost optimization behavior
 
 ### 1.2 Search Query Generation Model
-- [ ] **Create dedicated search query generator**
-  - Implement `SearchQueryLLM` class in new `models/` directory
-  - Optimize for fast, efficient query generation (lighter models like GPT-4o-mini, Llama-3.1-8B)
-  - Fine-tune prompts specifically for search query optimization
-  - Add query validation and filtering logic
+- [x] **Create dedicated search query generator**
+  - [x] Implement `SearchQueryLLM` class in new `models/` directory
+  - [x] Optimize for fast, efficient query generation (lighter models like GPT-4o-mini, Llama-3.1-8B)
+  - [x] Fine-tune prompts specifically for search query optimization
+  - [x] Add query validation and filtering logic
 
-- [ ] **Update workflow for search query model**
-  - Modify `query_planner()` function in `workflow.py`
-  - Implement model-specific prompting strategies
-  - Add query quality scoring and refinement
+- [x] **Update workflow for search query model**
+  - [x] Modify `query_planner()` function in `workflow.py`
+  - [x] Implement model-specific prompting strategies
+  - [x] Add query quality scoring and refinement
 
 ### 1.3 Thinking/Reasoning Model Integration
 - [ ] **Implement thinking model system**
-  - Create `ThinkingLLM` class for report generation and chat
-  - Integrate DeepSeek R1 or similar reasoning models
-  - Add support for chain-of-thought reasoning
-  - Implement step-by-step thinking display in UI
+  - [x] Create `ThinkingLLM` class for report generation and chat
+  - [x] Integrate DeepSeek R1 or similar reasoning models
+  - [x] Add support for chain-of-thought reasoning
+  - [x] Implement step-by-step thinking display in UI
 
 - [ ] **Update report generation**
-  - Modify `final_report_generator()` function
-  - Add reasoning traces and thought processes
-  - Implement multi-step analysis workflow
-  - Add confidence scoring for claims and findings
+- [x] Modify `final_report_generator()` function
+-  - [x] Add reasoning traces and thought processes
+- [x] Implement multi-step analysis workflow
+- [x] Add confidence scoring for claims and findings
 
 ### 1.4 Model Management System
 - [ ] **Create model manager**
-  - Implement `ModelManager` class for handling multiple models
-  - Add model selection logic based on task type
-  - Implement rate limiting and cost optimization
-  - Add model health monitoring and fallbacks
+  - [x] Implement `ModelManager` class for handling multiple models
+  - [x] Add model selection logic based on task type
+  - [x] Implement rate limiting and cost optimization
+  - [x] Add model health monitoring and fallbacks
 
 ---
 
@@ -70,25 +72,25 @@ Current foundational version of the perplexity-like tool for LLM deep research a
 
 ### 2.1 Database and Storage Setup
 - [ ] **Choose and setup database**
-  - Implement SQLite for local development
+  - [x] Implement SQLite with sqlalchemy for local development
   - Add support for PostgreSQL for production
-  - Create database schemas for conversations, messages, and metadata
-  - Add migration system for schema updates
+  - [x] Create database schemas for conversations, messages, and metadata
+  - [x] Add migration system for schema updates
 
 - [ ] **Create data models**
   - Design `Conversation`, `Message`, `SearchSession` models
   - Implement user session management
-  - Add conversation metadata (title, timestamps, tags)
-  - Create indexes for efficient querying
+  - [x] Add conversation metadata (title, timestamps, tags)
+  - [x] Create indexes for efficient querying
 
 ### 2.2 Memory Management Implementation
-- [ ] **Implement conversation storage**
+- [x] **Implement conversation storage**
   - Create `ConversationManager` class
   - Add functions for saving/loading chat history
-  - Implement conversation summarization for long chats
-  - Add conversation search and filtering capabilities
+  - [x] Implement conversation summarization for long chats
+  - [x] Add conversation search and filtering capabilities
 
-- [ ] **Context management system**
+- [x] **Context management system**
   - Implement sliding window context management
   - Add conversation summarization for token limit management
   - Create context relevance scoring
@@ -96,23 +98,23 @@ Current foundational version of the perplexity-like tool for LLM deep research a
 
 ### 2.3 Chat Interface Enhancement
 - [ ] **Upgrade Streamlit UI for chat**
-  - Replace single query input with chat interface
-  - Add chat history display with collapsible messages
-  - Implement conversation list sidebar
-  - Add conversation management (new, delete, rename)
+  - [x] Replace single query input with chat interface
+  - [x] Add chat history display with collapsible messages
+  - [x] Implement conversation list sidebar
+  - [x] Add conversation management (new, delete, rename)
 
 - [ ] **Chat message handling**
-  - Implement message types (user, assistant, system, research)
-  - Add support for rich message content (markdown, links, images)
-  - Create message editing and regeneration features
-  - Add message reactions and bookmarking
+  - [x] Implement message types (user, assistant, system, research)
+  - [x] Add support for rich message content (markdown, links, images)
+  - [x] Create message editing and regeneration features
+  - [x] Add message reactions and bookmarking
 
 ### 2.4 Context-Aware Research
 - [ ] **Enhance workflow for chat context**
   - Modify workflow to consider conversation history
-  - Implement follow-up question handling
-  - Add reference to previous research sessions
-  - Create context-aware search query generation
+  - [x] Implement follow-up question handling
+  - [x] Add reference to previous research sessions
+  - [x] Create context-aware search query generation
 
 ---
 
@@ -133,13 +135,13 @@ Current foundational version of the perplexity-like tool for LLM deep research a
 
 ### 3.2 User Experience Improvements
 - [ ] **UI/UX enhancements**
-  - Add dark/light theme toggle
-  - Implement responsive design for mobile
-  - Add keyboard shortcuts for common actions
-  - Create customizable dashboard layout
+  - [x] Add dark/light theme toggle
+  - [x] Implement responsive design for mobile
+  - [x] Add keyboard shortcuts for common actions
+  - [ ] Create customizable dashboard layout
 
 - [ ] **Export and sharing features**
-  - Add conversation export (PDF, markdown, JSON)
+  - [x] Add conversation export via JSON and markdown (PDF export still pending)
   - Implement conversation sharing via links
   - Add research report templates
   - Create citation management system
@@ -164,9 +166,9 @@ Current foundational version of the perplexity-like tool for LLM deep research a
 ### 4.1 Testing Framework
 - [ ] **Unit testing**
   - Create tests for all utility functions
-  - Test LLM integration and model management
-  - Add database operation tests
-  - Test conversation management functions
+  - [x] Test LLM integration and model management
+  - [x] Add database operation tests
+  - [x] Test conversation management functions
 
 - [ ] **Integration testing**
   - Test complete research workflows
