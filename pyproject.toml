@@ -1,15 +1,41 @@
 [project]
 name = "perplexity-deep-search"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.1.1"
+description = "Deep Research, inspired by Perplexity, is an automated research assistant designed to streamline the process of gathering, analyzing, and synthesizing information from the web"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "bs4>=0.0.2",
     "duckduckgo-search>=8.0.4",
     "groq>=0.28.0",
+    "openai>=1.52.0",
+    "anthropic>=0.40.0",
     "langchain>=0.3.25",
+    "langchain-openai>=0.2.8",
+    "langchain-anthropic>=0.3.0",
     "langgraph>=0.4.8",
     "python-dotenv>=1.1.0",
-    "streamlit>=1.45.1",
+    "pydantic>=2.10.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.14.0",
+    "langchain-core>=0.3.65",
+    "langchain-groq>=0.3.2",
+    "langchain-google-genai>=2.0.10",
+    "google-generativeai>=0.8.5",
+    "pytest>=8.4.0",
+    "fastapi>=0.116.1",
+    "uvicorn>=0.35.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "black>=24.0.0",
+    "ruff>=0.7.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
 ]

@@ -8,6 +8,23 @@ if "final_report_generated" not in st.session_state:
     st.session_state["stream_data"] = []
     st.session_state["final_markdown_report"] = ""
     st.session_state["search_results"] = []
+    st.session_state["claim_confidences"] = []
+    st.session_state["reasoning_trace"] = []
+    st.session_state["analysis_summary"] = ""
+    st.session_state["analysis_results"] = {}
+    st.session_state["search_session_history"] = []
+    st.session_state["is_followup"] = False
+
+if "claim_confidences" not in st.session_state:
+    st.session_state["claim_confidences"] = []
+if "reasoning_trace" not in st.session_state:
+    st.session_state["reasoning_trace"] = []
+if "analysis_summary" not in st.session_state:
+    st.session_state["analysis_summary"] = ""
+if "analysis_results" not in st.session_state:
+    st.session_state["analysis_results"] = {}
+if "search_session_history" not in st.session_state:
+    st.session_state["search_session_history"] = []
 
 
 # Function to simulate streaming of data
@@ -38,6 +55,24 @@ def fetch_results_streaming(query):
             st.session_state["final_markdown_report"] = chunk["final_report_generator"][
                 "report_markdown"
             ]
+            st.session_state["claim_confidences"] = chunk["final_report_generator"].get(
+                "claim_confidences", []
+            )
+            st.session_state["reasoning_trace"] = chunk["final_report_generator"].get(
+                "reasoning_trace", []
+            )
+            st.session_state["analysis_summary"] = chunk["final_report_generator"].get(
+                "analysis_summary", ""
+            )
+            st.session_state["analysis_results"] = chunk["final_report_generator"].get(
+                "analysis_results", {}
+            )
+            st.session_state["search_session_history"] = chunk["final_report_generator"].get(
+                "search_session_history", []
+            )
+            st.session_state["is_followup"] = chunk["final_report_generator"].get(
+                "is_followup", False
+            )
         yield
 
 
@@ -115,6 +150,62 @@ if query:
 
     with tab2:
         if st.session_state["final_report_generated"]:
+            claim_confidences = st.session_state.get("claim_confidences", [])
+            if claim_confidences:
+                st.subheader("Claim Confidence")
+                for entry in claim_confidences:
+                    score_pct = int(round(entry.get("confidence_score", 0) * 100))
+                    level = entry.get("confidence_level", "unknown").title()
+                    st.markdown(
+                        f"**{level} confidence ({score_pct}%):** {entry.get('claim', '')}"
+                    )
+                    evidence = entry.get("evidence") or []
+                    if evidence:
+                        st.caption("Evidence: " + "; ".join(evidence))
+                    rationale = entry.get("rationale")
+                    if rationale:
+                        st.caption(f"Why: {rationale}")
+                st.divider()
+            reasoning_trace = st.session_state.get("reasoning_trace", [])
+            if reasoning_trace:
+                with st.expander("Thinking process", expanded=False):
+                    for idx, step in enumerate(reasoning_trace, 1):
+                        st.markdown(f"**Step {idx}.** {step}")
+                st.divider()
+            if st.session_state.get("is_followup"):
+                st.caption(
+                    "This query was detected as a follow-up to an existing research conversation."
+                )
+            analysis_summary = st.session_state.get("analysis_summary", "")
+            analysis_results = st.session_state.get("analysis_results", {})
+            if analysis_summary:
+                st.subheader("Analyst Overview")
+                st.markdown(analysis_summary)
+                st.divider()
+            key_insights = analysis_results.get("key_insights") or []
+            if key_insights:
+                st.subheader("Key Insights")
+                for insight in key_insights:
+                    st.markdown(f"- {insight}")
+                st.divider()
+            limitations = analysis_results.get("limitations") or []
+            if limitations:
+                st.subheader("Limitations Noted")
+                for limitation in limitations:
+                    st.markdown(f"- {limitation}")
+                st.divider()
+            search_history = st.session_state.get("search_session_history", [])
+            if search_history:
+                st.subheader("Recent research sessions")
+                for entry in search_history:
+                    title = entry.get("search_query", "Unnamed query")
+                    count = entry.get("result_count", 0)
+                    summary = entry.get("summary") or "No summary available."
+                    timestamp = entry.get("created_at", "Unknown time")
+                    st.markdown(
+                        f"- {timestamp}: `{title}` ({count} results) — {summary}"
+                    )
+                st.divider()
             st.markdown(st.session_state["final_markdown_report"])
 
     with tab3:

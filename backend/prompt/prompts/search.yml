@@ -1,0 +1,9 @@
+# prompts/analysis.yaml
+data_analysis:
+  template: |
+    Analyze the following data: {data}
+    Focus on: {focus_areas}
+    Provide insights in {output_format} format.
+  description: "Prompt for data analysis tasks"
+  input_variables: ["data", "focus_areas", "output_format"]
+  version: "1.2"
